@@ -331,6 +331,22 @@ hl.window_rule({
     center = true,
 })
 
+-- Zen/Firefox set the "Extension: " title after the window maps, so the static rule above misses it.
+-- Float it at a fixed size under the browser's top-right corner, where the extensions button is (the `size` rule is ignored on 0.56.2).
+local POPOUT_W, POPOUT_H = 380, 620
+hl.on("window.title", function(w)
+    if not w.title:find("^Extension: ") or w.floating then return end
+    hl.dispatch(hl.dsp.window.float({ action = "enable", window = w }))
+    hl.dispatch(hl.dsp.window.resize({ x = POPOUT_W, y = POPOUT_H, window = w }))
+    for _, b in ipairs(hl.get_windows()) do
+        if b.class == w.class and b ~= w and b.mapped and b.workspace and w.workspace and b.workspace.id == w.workspace.id then
+            hl.dispatch(hl.dsp.window.move({ x = b.at.x + b.size.x - POPOUT_W - 16, y = b.at.y + 48, window = w }))
+            return
+        end
+    end
+    hl.dispatch(hl.dsp.window.center({ window = w }))
+end)
+
 hl.window_rule({
     -- Firmware updater floats and is pinned so it stays visible while writing; no size because 0.56.2 ignores it (#16446).
     name   = "hypora-firmware-updater",

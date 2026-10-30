@@ -21,6 +21,14 @@ die() {
   exit 1
 }
 
+# dnf gets no stdin: something in its run waited for Enter even with -y. sudo reads its password from the tty, so this is safe.
+sudo() {
+  case " $* " in
+  *" dnf "*) command sudo "$@" </dev/null ;;
+  *) command sudo "$@" ;;
+  esac
+}
+
 # ---------- sanity checks ----------
 [ "$(id -u)" -ne 0 ] || die "Run as your normal user, not root (sudo is used where needed)."
 . /etc/os-release
