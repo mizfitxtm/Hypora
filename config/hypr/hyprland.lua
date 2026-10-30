@@ -323,6 +323,14 @@ hl.window_rule({
 })
 
 hl.window_rule({
+    -- Browser extension popouts (Bitwarden unlock etc.) float like an overlay instead of tiling; no size, 0.56.2 ignores it.
+    name   = "hypora-extension-popouts",
+    match  = { title = "^Extension: " },
+    float  = true,
+    center = true,
+})
+
+hl.window_rule({
     -- Firmware updater floats and is pinned so it stays visible while writing; no size because 0.56.2 ignores it (#16446).
     name   = "hypora-firmware-updater",
     match  = { title = "^Firmware Update$" },
