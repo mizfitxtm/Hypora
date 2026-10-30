@@ -6,6 +6,9 @@
     hypora-defaults set <ext> <app>  open .<ext> files with <app>, a desktop id (nvim.desktop)
     hypora-defaults reset <ext>      forget your choice; the system's default applies again
 
+<ext> may also be @browser, @files, @editor, @music, @video, @images or @mail: a whole kind of
+app, which sets every MIME type listed for it in CATEGORIES in one go.
+
 Backs the Default Apps window (Menu > Settings > Default Apps). It only ever writes your own
 ~/.config/mimeapps.list, the freedesktop file every toolkit reads, so it needs no root and a
 choice made here is the same one Files, Firefox and `xdg-open` see.
@@ -37,6 +40,22 @@ COMMON = ["txt", "md", "pdf", "html", "json", "py", "sh",
           "png", "jpg", "gif", "webp", "svg",
           "mp3", "flac", "ogg", "mp4", "mkv", "webm",
           "zip", "tar.gz", "7z", "iso"]
+
+# Kinds of app: key -> (label, what it opens, MIME types set together). The first MIME type is the one shown.
+# Super+B reads text/html, so the browser must set that along with the web links.
+CATEGORIES = {
+    "browser": ("Web browser", "Web pages and links",
+                ["x-scheme-handler/https", "x-scheme-handler/http", "text/html", "application/xhtml+xml"]),
+    "files":   ("File manager", "Folders", ["inode/directory"]),
+    "editor":  ("Text editor", "Plain text files", ["text/plain"]),
+    "music":   ("Music player", "Audio files",
+                ["audio/mpeg", "audio/flac", "audio/ogg", "audio/x-wav", "audio/mp4", "audio/x-opus+ogg"]),
+    "video":   ("Video player", "Video files",
+                ["video/mp4", "video/x-matroska", "video/webm", "video/quicktime", "video/x-msvideo"]),
+    "images":  ("Image viewer", "Pictures",
+                ["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"]),
+    "mail":    ("Email", "Email links", ["x-scheme-handler/mailto"]),
+}
 
 # Validated because they become a file name, an XML attribute and a mimeapps.list key
 EXT_RE = re.compile(r"\A[a-z0-9][a-z0-9_+.-]{0,15}\Z")
@@ -234,6 +253,15 @@ def row(ext, mime, mime_exts, apps):
     }
 
 
+def category_rows(apps):
+    rows = []
+    for key, (label, what, mimes) in CATEGORIES.items():
+        r = row("@" + key, mimes[0], {}, apps)
+        r["label"], r["description"] = label, what
+        rows.append(r)
+    return rows
+
+
 def all_apps(apps):
     return [{"id": a["id"], "name": a["name"]}
             for a in sorted(apps.values(), key=lambda a: a["name"].lower()) if a["shown"]]
@@ -252,7 +280,7 @@ def cmd_list():
             exts.append(known[0])
     rows = [row(e, ext_mime.get(e), mime_exts, apps) for e in exts]
     rows = [r for r in rows if r["mime"]]
-    print(json.dumps({"rows": rows, "apps": all_apps(apps)}))
+    print(json.dumps({"categories": category_rows(apps), "rows": rows, "apps": all_apps(apps)}))
     return 0
 
 
@@ -263,31 +291,53 @@ def cmd_lookup(raw):
     return 0
 
 
+def category_of(raw):
+    """(label, mimes) for @key, or None for a plain extension."""
+    if not raw.startswith("@"):
+        return None
+    if raw[1:] not in CATEGORIES:
+        sys.exit(f"Not a kind of app: {raw!r} (one of: {', '.join('@' + k for k in CATEGORIES)})")
+    label, _, mimes = CATEGORIES[raw[1:]]
+    return label, mimes
+
+
 def cmd_set(raw, app_id):
-    ext = ext_of(raw)
+    cat = category_of(raw)
+    ext = None if cat else ext_of(raw)
     if not APP_RE.match(app_id):
         sys.exit(f"Not a desktop id: {app_id!r}")
     apps = load_apps()
     if app_id not in apps:
         sys.exit(f"{app_id} is not installed, or cannot open files.")
-    ext_mime, _ = load_globs()
-    mime = ext_mime.get(ext) or add_mime_type(ext)
-    # Use gio so the app is also recorded under Added Associations, which GIO needs to honour the default.
-    p = subprocess.run(["gio", "mime", mime, app_id], capture_output=True, text=True)
-    if p.returncode != 0:
-        sys.exit(f"Could not set the default: {(p.stderr or p.stdout).strip()[:200]}")
-    print(f".{ext} ({mime}) now opens with {apps[app_id]['name']}.")
+    if cat:
+        mimes = cat[1]
+    else:
+        ext_mime, _ = load_globs()
+        mimes = [ext_mime.get(ext) or add_mime_type(ext)]
+    for mime in mimes:
+        # Use gio so the app is also recorded under Added Associations, which GIO needs to honour the default.
+        p = subprocess.run(["gio", "mime", mime, app_id], capture_output=True, text=True)
+        if p.returncode != 0:
+            sys.exit(f"Could not set the default: {(p.stderr or p.stdout).strip()[:200]}")
+    what = cat[0] if cat else f".{ext} ({mimes[0]})"
+    print(f"{what} now opens with {apps[app_id]['name']}." if not cat
+          else f"{what} is now {apps[app_id]['name']}.")
     return 0
 
 
 def cmd_reset(raw):
     """Drop your Default Applications line for the type. Added Associations stay, so the
     app is still offered under Open With — forgetting a default is not uninstalling."""
-    ext = ext_of(raw)
-    ext_mime, _ = load_globs()
-    mime = ext_mime.get(ext)
-    if not mime or not USER_MIMEAPPS.is_file():
-        print(f"Nothing set for .{ext}.")
+    cat = category_of(raw)
+    ext = None if cat else ext_of(raw)
+    name = cat[0] if cat else f".{ext}"
+    if cat:
+        mimes = set(cat[1])
+    else:
+        ext_mime, _ = load_globs()
+        mimes = {ext_mime.get(ext)} - {None}
+    if not mimes or not USER_MIMEAPPS.is_file():
+        print(f"Nothing set for {name}.")
         return 0
     lines, inside, changed = USER_MIMEAPPS.read_text().splitlines(), False, False
     kept = []
@@ -295,7 +345,7 @@ def cmd_reset(raw):
         s = line.strip()
         if s.startswith("["):
             inside = s == "[Default Applications]"
-        elif inside and s.split("=", 1)[0].strip() == mime:
+        elif inside and s.split("=", 1)[0].strip() in mimes:
             changed = True
             continue
         kept.append(line)
@@ -303,7 +353,7 @@ def cmd_reset(raw):
         tmp = USER_MIMEAPPS.with_name(".mimeapps.list.hypora-tmp")
         tmp.write_text("\n".join(kept) + "\n")
         os.replace(tmp, USER_MIMEAPPS)
-    print(f".{ext} is back on the system default." if changed else f"Nothing set for .{ext}.")
+    print(f"{name} is back on the system default." if changed else f"Nothing set for {name}.")
     return 0
 
 

@@ -190,23 +190,11 @@ if check_rendered "$OUT/qt6ct-system.conf" "$QT_RE" && check_rendered "$OUT/qt6c
     fi
 fi
 
-# Boot screen: same sudo rule as the login screen; the initramfs copy only changes after `dracut -f`.
+# Boot screen: hypora-boot (root) installs the files and rebuilds the initramfs, so only say when it is needed.
 PLY_DIR=/usr/share/plymouth/themes/hypora
-if [ -d "$PLY_DIR" ] && [ -f "$OUT/plymouth.plymouth" ]; then
-    if ! cmp -s "$OUT/plymouth.plymouth" "$PLY_DIR/hypora.plymouth"; then
-        if [ -w "$PLY_DIR" ]; then
-            cp "$OUT/plymouth.plymouth" "$PLY_DIR/hypora.plymouth"
-            [ -d "$OUT/plymouth" ] && cp "$OUT"/plymouth/*.png "$PLY_DIR/"
-        elif [ -t 0 ]; then
-            sudo install -m644 "$OUT/plymouth.plymouth" "$PLY_DIR/hypora.plymouth" || true
-            [ -d "$OUT/plymouth" ] && sudo install -m644 "$OUT"/plymouth/*.png "$PLY_DIR/" || true
-        fi
-        if cmp -s "$OUT/plymouth.plymouth" "$PLY_DIR/hypora.plymouth"; then
-            echo "Boot screen updated. It changes on screen after: sudo dracut -f"
-        else
-            echo "Couldn't update the boot screen; run: sudo hypora-theme $NAME" >&2
-        fi
-    fi
+if [ -d "$PLY_DIR" ] && [ -f "$OUT/plymouth.plymouth" ] \
+    && ! cmp -s "$OUT/plymouth.plymouth" "$PLY_DIR/hypora.plymouth"; then
+    echo "Boot screen is still on the previous theme; run: sudo hypora-boot apply"
 fi
 
 # Console colours are kernel arguments, so just tell the user to re-apply them

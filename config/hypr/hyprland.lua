@@ -2,8 +2,9 @@
 
 ------------------ PROGRAMS ------------------
 local terminal    = "kitty"
--- Firefox is a flatpak, so use `flatpak run` rather than a desktop id (works without uwsm too).
-local browser     = "flatpak run org.mozilla.firefox"
+-- The browser chosen in Default Apps (text/html), else the https handler, else Firefox (a flatpak, which ships with Hypora).
+local browser     = [[sh -c 'id=$(xdg-mime query default text/html); [ -n "$id" ] || id=$(xdg-mime query default x-scheme-handler/https); ]]
+                 .. [[gtk-launch "${id:-org.mozilla.firefox.desktop}" || flatpak run org.mozilla.firefox']]
 local fileManager = "nautilus"
 local mainMod  = "SUPER"
 

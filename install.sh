@@ -9,7 +9,7 @@ CONF="$HOME/.config"
 # Keep the theme chosen last time (hypora-theme) unless THEME is set
 THEME="${THEME:-$(cat "$CONF/hypora/current/name" 2>/dev/null || echo Nord)}"
 
-log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+log() { printf '\033[1;34m==>\033[0m \033[2m%s\033[0m %s\n' "$(date +%H:%M:%S)" "$*"; }
 # Warnings print as they happen and are saved, so the summary at the end can repeat them
 WARNINGS=()
 warn() {
@@ -892,7 +892,7 @@ done
 
 # Root-run scripts go to root-owned /usr/local/bin, or anything that can write ~/.local/bin could get root.
 ROOT_OWNED=(hypora-security hypora-console hypora-hardware hypora-grub hypora-power
-  hypora-replace-de hypora-greeter)
+  hypora-replace-de hypora-greeter hypora-boot)
 
 for name in "${ROOT_OWNED[@]}"; do
   log "Installing $name to /usr/local/bin (root-owned)"
@@ -960,6 +960,14 @@ fi
 RENDERED_PLY="$CONF/hypora/current/plymouth.plymouth"
 if command -v plymouth-set-default-theme >/dev/null 2>&1 && [ -f "$RENDERED_PLY" ]; then
   log "Installing the boot screen theme"
+  # The initramfs rebuild takes about a minute, so redo it only if a file differs or the theme is not active.
+  ply_rebuild=0
+  [ "$(plymouth-set-default-theme 2>/dev/null)" = hypora ] || ply_rebuild=1
+  cmp -s "$RENDERED_PLY" /usr/share/plymouth/themes/hypora/hypora.plymouth || ply_rebuild=1
+  for f in "$CONF"/hypora/current/plymouth/*.png; do
+    [ -f "$f" ] || continue
+    cmp -s "$f" "/usr/share/plymouth/themes/hypora/$(basename "$f")" || ply_rebuild=1
+  done
   sudo install -d -m755 /usr/share/plymouth/themes/hypora
   sudo install -m644 -o root -g root "$RENDERED_PLY" \
     /usr/share/plymouth/themes/hypora/hypora.plymouth
@@ -982,8 +990,13 @@ if command -v plymouth-set-default-theme >/dev/null 2>&1 && [ -f "$RENDERED_PLY"
   if [ "$ply_dupes" -eq 0 ] &&
     [ -f /usr/share/plymouth/themes/hypora/entry.png ] &&
     [ -f /usr/share/plymouth/themes/hypora/bullet.png ]; then
-    sudo plymouth-set-default-theme hypora -R ||
-      warn "Could not set the boot theme; the previous one is still in place"
+    if [ "$ply_rebuild" -eq 1 ]; then
+      log "Rebuilding the initramfs for the boot screen (about a minute, no output)"
+      sudo plymouth-set-default-theme hypora -R ||
+        warn "Could not set the boot theme; the previous one is still in place"
+    else
+      log "Boot screen theme unchanged, so the initramfs was not rebuilt"
+    fi
   else
     warn "Boot screen images are missing; leaving the existing boot theme alone"
   fi

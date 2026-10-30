@@ -101,3 +101,5 @@ Slot 0 is the console background and slot 7 the foreground, so those take the th
 Two things it deliberately doesn't do: it isn't run by `hypora-theme` on every theme switch (editing the kernel command line shouldn't be a side effect of picking a colour scheme — `hypora-theme` just prints a reminder when the console is out of step), and it leaves the cursor alone. Add `vt.global_cursor_default=0` yourself if you'd rather not have the blinking block.
 
 Related knobs this doesn't touch: the console font is `FONT=` in `/etc/vconsole.conf` (`terminus-fonts-console` provides `ter-v22n` and similar), and `loglevel=3` next to `quiet` stops kernel messages scrolling the passphrase prompt away.
+
+After switching themes, `hypora-theme` tells you if the boot screen is behind. `sudo hypora-boot apply` installs the rendered images and rebuilds the initramfs (about a minute), and does nothing if they already match.

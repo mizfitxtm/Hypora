@@ -26,6 +26,7 @@ Scope {
 
             readonly property string helper: Quickshell.env("HOME") + "/.local/bin/hypora-defaults"
 
+            property var cats: []          // kinds of app (browser, files...) shown above the file types
             property var rows: []
             property var apps: []          // every app that can open a file, for "Show all"
             property var added: null       // the row a lookup produced, until it's in `rows`
@@ -46,6 +47,7 @@ Scope {
                     onStreamFinished: {
                         try {
                             const d = JSON.parse(text)
+                            win.cats = d.categories
                             win.rows = d.rows
                             win.apps = d.apps
                         } catch (e) {
@@ -136,7 +138,7 @@ Scope {
                     Text {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        text: "Which app opens each kind of file. Changes apply straight away, "
+                        text: "Your main apps, then which app opens each kind of file. Changes apply straight away, "
                               + "everywhere — Files, Firefox and anything using xdg-open read the same list."
                         font.family: Theme.font; font.pixelSize: Theme.fontSize - 1
                         color: Theme.dim
@@ -198,6 +200,15 @@ Scope {
                             width: parent.width
                             spacing: 4
 
+                            Heading { text: "Default apps"; Layout.topMargin: 4 }
+                            Repeater {
+                                model: win.cats
+                                TypeRow {
+                                    required property var modelData
+                                    data_: modelData
+                                }
+                            }
+
                             Heading { text: "New file type"; visible: win.added !== null }
                             TypeRow { visible: win.added !== null; data_: win.added }
 
@@ -257,7 +268,7 @@ Scope {
                         Text {
                             width: parent.width
                             elide: Text.ElideRight
-                            text: tr.data_ ? "." + tr.data_.ext : ""
+                            text: !tr.data_ ? "" : (tr.data_.label || "." + tr.data_.ext)
                             font.family: Theme.font; font.pixelSize: Theme.fontSize; font.bold: true
                             color: Theme.fg
                         }

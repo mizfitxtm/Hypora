@@ -163,7 +163,7 @@ These are kept deliberately and **marked user-installed**, which is what stops `
 | Keys | Action |
 |---|---|
 | SUPER + Enter | Terminal |
-| SUPER + B | Browser (Firefox, sandboxed as a flatpak) |
+| SUPER + B | Browser (your default browser from Default Apps; Firefox on a fresh install) |
 | SUPER + E | Files (Nautilus) |
 | SUPER + R | App launcher |
 | SUPER + A | Hypora menu |
