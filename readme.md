@@ -29,6 +29,10 @@ All shown in **Gruvbox**; every theme drives the same widgets from its own palet
 
 The picker shows my own themes, Cyberpunk, Duck and Fantasy, made from wallpapers with [Cosmos](https://github.com/mizfitxtm/Cosmos). Hypora ships with the six below.
 
+The logo in the bar and on the boot screen takes its colours from the active theme. Here it is in each shipped theme: Nord, Tokyo Night, Catppuccin Mocha, Gruvbox, Kanagawa and Osaka Jade.
+
+<img src="docs/images/logo-themes.png" alt="The Hypora logo drawn in the colours of each of the six shipped themes" width="800">
+
 More in the [reference](docs/reference.md#screenshots).
 
 ## Requirements
