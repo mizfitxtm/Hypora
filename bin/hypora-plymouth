@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""hypora-plymouth OUTDIR [--bg HEX] [--surface HEX] [--fg HEX] [--dim HEX] [--accent HEX]
+"""hypora-plymouth OUTDIR [--bg HEX] [--surface HEX] [--fg HEX] [--dim HEX] [--accent HEX] [--magenta HEX]
 
 Draws the Plymouth boot theme's images in the current palette's colours: the passphrase
 field, its bullets, the padlock, the caps-lock warning and the Hypora watermark.
@@ -18,10 +18,6 @@ import os
 import struct
 import sys
 import zlib
-
-# The mark's gradient is deliberately not themed, matching Logo.qml.
-LOGO_FROM = (0x7a, 0xa2, 0xf7)
-LOGO_TO = (0xc3, 0x7a, 0xf7)
 
 
 # ---------- output ----------
@@ -244,9 +240,9 @@ def draw_capslock(path, colour, width=26, height=30):
     c.save(path)
 
 
-def draw_watermark(path, size=72):
-    """The Hypora mark: a hexagon around an H whose crossbar is an aurora wave. Same
-    geometry as config/quickshell/Logo.qml and the SDDM theme — keep the three in step."""
+def draw_watermark(path, start, end, size=72):
+    """The Hypora mark: a hexagon around an H whose crossbar is an aurora wave, shaded
+    start -> end like the bar. Same geometry as config/quickshell/Logo.qml — keep them in step."""
     c = Canvas(size, size)
     s = size / 24.0          # the mark is authored in a 24x24 box
     sw = 1.9 * s
@@ -254,7 +250,7 @@ def draw_watermark(path, size=72):
     def shade(x, y):
         # Diagonal gradient, matching Logo.qml's x1,y1 3,2 -> x2,y2 21,22
         t = min(max(((x / s - 3) + (y / s - 2)) / 38.0, 0.0), 1.0)
-        return tuple(int(round(a + (b - a) * t)) for a, b in zip(LOGO_FROM, LOGO_TO))
+        return tuple(int(round(a + (b - a) * t)) for a, b in zip(start, end))
 
     hexagon = [(12, 1.8), (20.8, 6.9), (20.8, 17.1), (12, 22.2), (3.2, 17.1), (3.2, 6.9)]
     c.paint_shaded(path_stroke(segments([(x * s, y * s) for x, y in hexagon], closed=True), sw), shade)
@@ -272,7 +268,7 @@ def main(argv):
         return 2
     outdir = argv[1]
     opts = {"bg": "#2e3440", "surface": "#3b4252", "fg": "#eceff4",
-            "dim": "#7b88a1", "accent": "#88c0d0"}
+            "dim": "#7b88a1", "accent": "#88c0d0", "magenta": "#b48ead"}
     rest = argv[2:]
     while rest:
         key = rest.pop(0)
@@ -294,7 +290,7 @@ def main(argv):
     draw_bullet(os.path.join(outdir, "bullet.png"), colours["accent"])
     draw_lock(os.path.join(outdir, "lock.png"), colours["accent"])
     draw_capslock(os.path.join(outdir, "capslock.png"), colours["fg"])
-    draw_watermark(os.path.join(outdir, "watermark.png"))
+    draw_watermark(os.path.join(outdir, "watermark.png"), colours["accent"], colours["magenta"])
     return 0
 
 

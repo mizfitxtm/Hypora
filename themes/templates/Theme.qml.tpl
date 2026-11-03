@@ -12,6 +12,7 @@ Singleton {
     readonly property color fg: "{{ foreground }}"
     readonly property color dim: "{{ dim }}"
     readonly property color accent: "{{ accent }}"
+    readonly property color magenta: "{{ magenta }}"
     readonly property color error: "{{ error }}"
     readonly property color warn: "{{ yellow }}"
     readonly property string font: "{{ font }}"

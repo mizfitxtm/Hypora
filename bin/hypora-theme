@@ -122,7 +122,7 @@ if [ -x "$PLYGEN" ]; then
   rm -rf "$OUT/plymouth"
   "$PLYGEN" "$OUT/plymouth" \
     --bg "$(value background)" --surface "$(value surface)" --fg "$(value foreground)" \
-    --dim "$(value dim)" --accent "$(value accent)" ||
+    --dim "$(value dim)" --accent "$(value accent)" --magenta "$(value magenta)" ||
     echo "warning: could not draw the boot screen images" >&2
 fi
 

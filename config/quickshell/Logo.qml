@@ -1,11 +1,11 @@
 import QtQuick
 
-// The Hypora mark with a fixed gradient so it looks the same in every theme; keep in sync with the SDDM theme's SVG.
+// The Hypora mark in the theme's accent-to-magenta gradient, the same pair as the focused window's border.
 Image {
     id: root
     property real size: 18
-    property color from: "#7aa2f7"
-    property color to: "#c37af7"
+    property color from: Theme.accent
+    property color to: Theme.magenta
 
     width: size
     height: size
