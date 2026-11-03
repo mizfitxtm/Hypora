@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Io
 import Quickshell.Networking
+import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Layouts
 
@@ -24,6 +25,13 @@ Scope {
             implicitHeight: 620
             color: Theme.bg
             onClosed: ShellState.networkSettingsOpen = false
+
+            // Clicking outside the window clears the grab, which closes the panel.
+            HyprlandFocusGrab {
+                windows: [win]
+                active: win.visible
+                onCleared: ShellState.networkSettingsOpen = false
+            }
 
             readonly property var wifiDevice: Networking.devices.values.find(d => d.type === DeviceType.Wifi) ?? null
             readonly property var wired: Networking.devices.values.find(d => d.type !== DeviceType.Wifi && d.connected) ?? null

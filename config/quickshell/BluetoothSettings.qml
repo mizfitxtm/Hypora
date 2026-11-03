@@ -3,6 +3,7 @@ import Quickshell.Io
 import Quickshell.Bluetooth
 import QtQuick
 import QtQuick.Layouts
+import Quickshell.Hyprland
 
 // Bluetooth settings: power, scanning, pairing and forgetting; also `qs ipc call bluetooth open`.
 Scope {
@@ -24,6 +25,13 @@ Scope {
             implicitHeight: 620
             color: Theme.bg
             onClosed: ShellState.bluetoothSettingsOpen = false
+
+            //Hyprland Focus grab to clear grab on click outside of window
+            HyprlandFocusGrab {
+                windows: [win]
+                active: win.visible
+                onCleared: ShellState.bluetoothSettingsOpen = false
+            }
 
             readonly property var adapter: Bluetooth.defaultAdapter
             readonly property var devices: (adapter?.devices?.values ?? []).slice().sort((a, b) =>

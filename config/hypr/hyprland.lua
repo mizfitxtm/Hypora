@@ -253,6 +253,8 @@ end
 workspace_rules()
 -- Run again on plug-in; pcall because a wrong event name would stop everything defined after it.
 pcall(hl.on, "monitor.added", workspace_rules)
+-- A KVM switch can crash Quickshell (EGL surface lost); bring it back once the outputs return.
+pcall(hl.on, "monitor.added", function() hl.exec_cmd("sleep 2; pgrep -x qs >/dev/null || " .. app("qs")) end)
 
 -- Which block the keys address: whichever monitor has the focus right now
 local function ws(n)
