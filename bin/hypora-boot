@@ -3,9 +3,18 @@
 # hypora-theme cannot do this itself: it runs as you, and the initramfs rebuild takes about a minute.
 set -euo pipefail
 
-[ "$(id -u)" -eq 0 ] || { echo "Run as: sudo hypora-boot apply" >&2; exit 1; }
-[ "${1:-}" = apply ] || { sed -n '2p' "$0" | cut -c3- >&2; exit 2; }
-command -v plymouth-set-default-theme >/dev/null 2>&1 || { echo "Plymouth is not installed." >&2; exit 1; }
+[ "$(id -u)" -eq 0 ] || {
+  echo "Run as: sudo hypora-boot apply" >&2
+  exit 1
+}
+[ "${1:-}" = apply ] || {
+  sed -n '2p' "$0" | cut -c3- >&2
+  exit 2
+}
+command -v plymouth-set-default-theme >/dev/null 2>&1 || {
+  echo "Plymouth is not installed." >&2
+  exit 1
+}
 
 # The rendered files live in the invoking user's home, so only accept what the shipped template could produce.
 HOME_DIR=$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)
@@ -14,37 +23,52 @@ DEST=/usr/share/plymouth/themes/hypora
 # Same shape check as hypora-theme's PLY_RE
 PLY_RE='^(#.*|\[[A-Za-z -]+\]|Name=Hypora|Description=[A-Za-z0-9 ,._-]*|ModuleName=two-step|ImageDir=/usr/share/plymouth/themes/hypora|(Font|TitleFont)=[A-Za-z0-9 ._+-]+|(BackgroundStartColor|BackgroundEndColor|ProgressBarBackgroundColor|ProgressBarForegroundColor)=0x[0-9a-fA-F]{6}|ProgressBar(Width|Height)=[0-9]+|[A-Za-z]+Alignment=[.0-9]+|Transition=none|TransitionDuration=[.0-9]+|(MessageBelowAnimation|DialogClearsFirmwareBackground|UseFirmwareBackground|UseEndAnimation|UseProgressBar|SuppressMessages|ProgressBarShowPercentComplete)=(true|false)|(Title|SubTitle)=[A-Za-z0-9 .,_-]+|)$'
 
-[ -d "$DEST" ] || { echo "No boot screen theme installed yet; run ./install.sh first." >&2; exit 1; }
+[ -d "$DEST" ] || {
+  echo "No boot screen theme installed yet; run ./install.sh first." >&2
+  exit 1
+}
 
 # Copy first (-P keeps a symlink a symlink), then check the copy, so the user cannot swap the file after the check
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 cp -P --no-preserve=all "$SRC/plymouth.plymouth" "$tmp/hypora.plymouth" 2>/dev/null ||
-    { echo "No rendered boot screen found; run hypora-theme first." >&2; exit 1; }
-[ -f "$tmp/hypora.plymouth" ] && [ ! -L "$tmp/hypora.plymouth" ] || { echo "Refusing: plymouth.plymouth is not a plain file." >&2; exit 1; }
-if grep -qvE "$PLY_RE" "$tmp/hypora.plymouth"; then
-    echo "Refusing: plymouth.plymouth has lines the shipped template never makes." >&2
+  {
+    echo "No rendered boot screen found; run hypora-theme first." >&2
     exit 1
+  }
+[ -f "$tmp/hypora.plymouth" ] && [ ! -L "$tmp/hypora.plymouth" ] || {
+  echo "Refusing: plymouth.plymouth is not a plain file." >&2
+  exit 1
+}
+if grep -qvE "$PLY_RE" "$tmp/hypora.plymouth"; then
+  echo "Refusing: plymouth.plymouth has lines the shipped template never makes." >&2
+  exit 1
 fi
 for f in "$SRC"/plymouth/*.png; do
-    [ -e "$f" ] || [ -L "$f" ] || continue
-    cp -P --no-preserve=all "$f" "$tmp/" 2>/dev/null || true
-    b=$(basename "$f")
-    [ -f "$tmp/$b" ] && [ ! -L "$tmp/$b" ] || { echo "Refusing: $b is not a plain file." >&2; exit 1; }
+  [ -e "$f" ] || [ -L "$f" ] || continue
+  cp -P --no-preserve=all "$f" "$tmp/" 2>/dev/null || true
+  b=$(basename "$f")
+  [ -f "$tmp/$b" ] && [ ! -L "$tmp/$b" ] || {
+    echo "Refusing: $b is not a plain file." >&2
+    exit 1
+  }
 done
 [ -f "$tmp/entry.png" ] && [ -f "$tmp/bullet.png" ] ||
-    { echo "Refusing: entry.png and bullet.png are needed for the passphrase prompt." >&2; exit 1; }
+  {
+    echo "Refusing: entry.png and bullet.png are needed for the passphrase prompt." >&2
+    exit 1
+  }
 
 rebuild=0
 [ "$(plymouth-set-default-theme 2>/dev/null)" = hypora ] || rebuild=1
 cmp -s "$tmp/hypora.plymouth" "$DEST/hypora.plymouth" || rebuild=1
 for f in "$tmp"/*.png; do
-    cmp -s "$f" "$DEST/$(basename "$f")" || rebuild=1
+  cmp -s "$f" "$DEST/$(basename "$f")" || rebuild=1
 done
 
 if [ "$rebuild" -eq 0 ]; then
-    echo "Boot screen is already up to date."
-    exit 0
+  echo "Boot screen is already up to date."
+  exit 0
 fi
 install -m644 -o root -g root "$tmp/hypora.plymouth" "$DEST/hypora.plymouth"
 install -m644 -o root -g root "$tmp"/*.png "$DEST/"
