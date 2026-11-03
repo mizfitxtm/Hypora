@@ -18,14 +18,16 @@ The aim is an "install it and it just looks good" experience that doesn't take c
 
 ## Screenshots
 
-All shown in **Nord**; every theme drives the same widgets from its own palette.
+All shown in **Gruvbox**; every theme drives the same widgets from its own palette.
 
 <p>
-<img src="docs/images/menu-sections.png" alt="The Hypora menu, showing its six sections" width="330">
-<img src="docs/images/menu-settings.png" alt="The menu's Settings section" width="330">
+<img src="docs/images/menu-sections-gruvbox.png" alt="The Hypora menu, showing its six sections" width="330">
+<img src="docs/images/menu-apps-gruvbox.png" alt="The menu's Apps section, listing installed apps with their icons" width="330">
 </p>
 
-<img src="docs/images/theme-picker.png" alt="The Hypora theme picker, sliding between themes" width="800">
+<img src="docs/images/theme-picker-gruvbox.png" alt="The Hypora theme picker with the Cyberpunk, Duck and Fantasy themes" width="800">
+
+The picker shows my own themes, Cyberpunk, Duck and Fantasy, made from wallpapers with [Cosmos](https://github.com/mizfitxtm/Cosmos). Hypora ships with the six below.
 
 More in the [reference](docs/reference.md#screenshots).
 
@@ -64,7 +66,7 @@ Reboot when it finishes. SDDM shows the Hypora login screen and starts the **Hyp
 ## What you get
 
 - **Hyprland** (started through `uwsm`) with **Quickshell** as the shell: bar, menu, control center, launcher, notifications and a polkit prompt. It replaces Waybar, Mako and a standalone polkit agent
-- **Six themes**: Nord, Tokyo Night, Catppuccin Mocha, Gruvbox, Kanagawa and Osaka Jade, each with wallpapers. One `colors.toml` per theme drives everything, and **SUPER + ALT + T** switches ([make your own](docs/theming.md))
+- **Six themes**: Nord, Tokyo Night, Catppuccin Mocha, Gruvbox, Kanagawa and Osaka Jade, each with wallpapers. One `colors.toml` per theme drives everything, and **SUPER + ALT + T** switches ([make your own](docs/theming.md), or build one from any wallpaper with [Cosmos](https://github.com/mizfitxtm/Cosmos))
 - **Settings windows** for Network, Bluetooth, Sound, Display, Default Apps, and Security & Privacy
 - **Privacy and security by default**: DNS-over-TLS where the network allows it, a closed firewall, MAC randomization, automatic security updates and no telemetry ([details](docs/security.md))
 - **Plugins** for the bar, with every file and script shown to you before anything is installed ([plugins](docs/plugins.md))

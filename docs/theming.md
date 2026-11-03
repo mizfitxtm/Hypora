@@ -5,6 +5,8 @@ engine, no per-app config to keep in sync, and nothing to compile.
 
 [← back to the readme](../readme.md)
 
+Rather not pick the colours by hand? [Cosmos](https://github.com/mizfitxtm/Cosmos) builds a theme from any wallpaper and saves it straight into `~/.config/hypora/themes/`.
+
 ```
 themes/YourTheme/
 ├── colors.toml          # 31 keys: the whole theme

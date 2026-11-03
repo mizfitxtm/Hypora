@@ -141,6 +141,8 @@ Scope {
             implicitHeight: 720
             color: Theme.bg
             onClosed: ShellState.displaySettingsOpen = false
+            // Closing mid-countdown must not keep an unconfirmed change, so undo it on the way out.
+            Component.onDestruction: if (countdown > 0) revert()
 
             property var monitors: []          // from `hyprctl monitors all -j`
             property var edits: ({})           // name -> { mode, scale, transform, position, disabled }
