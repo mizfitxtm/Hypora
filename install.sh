@@ -964,50 +964,12 @@ if [ -f "$RENDERED_SDDM" ] && [ -d "$SDDM_THEME" ]; then
   sudo install -m644 -o root -g root "$RENDERED_SDDM" "$SDDM_THEME/theme.conf"
 fi
 
-# Boot screen with the passphrase prompt: the theme must be in the initramfs (`-R`), the slowest step.
-RENDERED_PLY="$CONF/hypora/current/plymouth.plymouth"
-if command -v plymouth-set-default-theme >/dev/null 2>&1 && [ -f "$RENDERED_PLY" ]; then
+if command -v plymouth-set-default-theme >/dev/null 2>&1 && [ -f "$CONF/hypora/current/plymouth.plymouth" ]; then
   log "Installing the boot screen theme"
-  # The initramfs rebuild takes about a minute, so redo it only if a file differs or the theme is not active.
-  ply_rebuild=0
-  [ "$(plymouth-set-default-theme 2>/dev/null)" = hypora ] || ply_rebuild=1
-  cmp -s "$RENDERED_PLY" /usr/share/plymouth/themes/hypora/hypora.plymouth || ply_rebuild=1
-  for f in "$CONF"/hypora/current/plymouth/*.png; do
-    [ -f "$f" ] || continue
-    cmp -s "$f" "/usr/share/plymouth/themes/hypora/$(basename "$f")" || ply_rebuild=1
-  done
+  # hypora-boot checks the rendered files, installs them and rebuilds the initramfs only if something changed.
   sudo install -d -m755 /usr/share/plymouth/themes/hypora
-  sudo install -m644 -o root -g root "$RENDERED_PLY" \
-    /usr/share/plymouth/themes/hypora/hypora.plymouth
-  if [ -d "$CONF/hypora/current/plymouth" ]; then
-    sudo install -m644 -o root -g root "$CONF"/hypora/current/plymouth/*.png \
-      /usr/share/plymouth/themes/hypora/
-  fi
-  # Plymouth's unanchored grep breaks if ModuleName or ImageDir appears twice, so require exactly one of each.
-  ply_dupes=0
-  for key in ModuleName ImageDir; do
-    n=$(grep -cE "${key} *= *" /usr/share/plymouth/themes/hypora/hypora.plymouth 2>/dev/null || true)
-    n=${n:-0}
-    if [ "$n" -ne 1 ]; then
-      warn "hypora.plymouth has $n lines matching '$key'; Plymouth needs exactly one"
-      ply_dupes=1
-    fi
-  done
-
-  # Switch only when the passphrase field and bullet images exist, or an encrypted disk gets no visible prompt.
-  if [ "$ply_dupes" -eq 0 ] &&
-    [ -f /usr/share/plymouth/themes/hypora/entry.png ] &&
-    [ -f /usr/share/plymouth/themes/hypora/bullet.png ]; then
-    if [ "$ply_rebuild" -eq 1 ]; then
-      log "Rebuilding the initramfs for the boot screen (about a minute, no output)"
-      sudo plymouth-set-default-theme hypora -R ||
-        warn "Could not set the boot theme; the previous one is still in place"
-    else
-      log "Boot screen theme unchanged, so the initramfs was not rebuilt"
-    fi
-  else
-    warn "Boot screen images are missing; leaving the existing boot theme alone"
-  fi
+  sudo /usr/local/bin/hypora-boot apply ||
+    warn "Could not set the boot theme; the previous one is still in place"
 
   # Keep the splash up until the login screen draws over it, or the GRUB menu shows between the two.
   sudo install -d /etc/systemd/system/plymouth-quit.service.d

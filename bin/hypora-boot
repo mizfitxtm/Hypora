@@ -44,6 +44,16 @@ if grep -qvE "$PLY_RE" "$tmp/hypora.plymouth"; then
   echo "Refusing: plymouth.plymouth has lines the shipped template never makes." >&2
   exit 1
 fi
+
+# Plymouth grep breaks if ModuleName or ImageDir appears twice, so only one of each. Period. Dot.
+for key in ModuleName ImageDir; do
+  [ "$(grep -c "${key}=" "$tmp/hypora.plymouth")" -eq 1 ] ||
+    {
+      echo "Refusing: plymouth.plymouth needs exactly one $key line." >&2
+      exit 1
+    }
+done
+
 for f in "$SRC"/plymouth/*.png; do
   [ -e "$f" ] || [ -L "$f" ] || continue
   cp -P --no-preserve=all "$f" "$tmp/" 2>/dev/null || true
