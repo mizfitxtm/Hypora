@@ -45,7 +45,7 @@ ENV_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 URL_RE = re.compile(r"^(https://|ssh://git@|git@)[^\s]+$")
 # Hypora's own scripts that are installed root-owned; a plugin may not shadow them.
 ROOT_OWNED = {"hypora-security", "hypora-console", "hypora-hardware", "hypora-grub",
-              "hypora-power", "hypora-replace-de", "hypora-greeter"}
+              "hypora-power", "hypora-replace-de", "hypora-greeter", "hypora-boot"}
 MAX_FILE = 2_000_000
 BIN_PLACEHOLDER = "@BIN_DIR@"
 KNOWN_TOP = {"id", "name", "version", "description", "license", "widget", "bin", "setup"}

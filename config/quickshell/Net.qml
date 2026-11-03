@@ -65,7 +65,8 @@ Singleton {
 
     Process {
         id: monitor
-        command: ["nmcli", "monitor"]
+        // the bar can die without cleaning itself up, so I make the kernel clean it up
+        command: ["setpriv", "--pdeathsig", "TERM", "nmcli", "monitor"]
         running: true
         stdout: SplitParser { onRead: soon.restart() }
         onRunningChanged: if (!running) restartMonitor.start()   // NetworkManager restarted

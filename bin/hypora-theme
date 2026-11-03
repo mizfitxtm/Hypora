@@ -10,24 +10,31 @@ OUT="$DIR/current"
 current() { cat "$OUT/name" 2>/dev/null || true; }
 
 list() {
-    for f in "$THEMES"/*/colors.toml; do
-        [ -f "$f" ] || continue
-        local name; name=$(basename "$(dirname "$f")")
-        if [ "$name" = "$(current)" ]; then echo "* $name"; else echo "  $name"; fi
-    done
+  for f in "$THEMES"/*/colors.toml; do
+    [ -f "$f" ] || continue
+    local name
+    name=$(basename "$(dirname "$f")")
+    if [ "$name" = "$(current)" ]; then echo "* $name"; else echo "  $name"; fi
+  done
 }
 
-if [ $# -eq 0 ]; then list; exit 0; fi
+if [ $# -eq 0 ]; then
+  list
+  exit 0
+fi
 NAME=$1
 # Root helpers read this name later, so refuse anything but a plain name here
 if ! [[ $NAME =~ ^[A-Za-z0-9][A-Za-z0-9\ ._-]{0,63}$ ]]; then
-    echo "Not a plain theme name: '$NAME'" >&2
-    exit 1
+  echo "Not a plain theme name: '$NAME'" >&2
+  exit 1
 fi
 COLORS="$THEMES/$NAME/colors.toml"
 if [ ! -f "$COLORS" ]; then
-    { echo "No theme named '$NAME'. Installed themes:"; list; } >&2
-    exit 1
+  {
+    echo "No theme named '$NAME'. Installed themes:"
+    list
+  } >&2
+  exit 1
 fi
 
 # value KEY: print the quoted value of KEY from colors.toml
@@ -35,71 +42,71 @@ value() { sed -nE "s/^$1[[:space:]]*=[[:space:]]*\"([^\"]*)\".*/\\1/p" "$COLORS"
 
 # The icon theme picked in the menu wins over the palette's default.
 icon_theme() {
-    local chosen=$ICONS_CHOSEN
-    if [ -n "$chosen" ] && [ -d "/usr/share/icons/$chosen" -o -d "$HOME/.local/share/icons/$chosen" ]; then
-        echo "$chosen"
-    else
-        value icon_theme
-    fi
+  local chosen=$ICONS_CHOSEN
+  if [ -n "$chosen" ] && [ -d "/usr/share/icons/$chosen" -o -d "$HOME/.local/share/icons/$chosen" ]; then
+    echo "$chosen"
+  else
+    value icon_theme
+  fi
 }
 
 # Validate: values go into a sed script, so allow only #rrggbb or a plain name from shared colors.toml files.
 while read -r key val; do
-    if ! [[ $val =~ ^#[0-9a-fA-F]{6}$ || $val =~ ^[A-Za-z0-9\ ._+-]*$ ]]; then
-        echo "Refusing theme '$NAME': '$key' has an unexpected value: $val" >&2
-        echo "Values must be a #rrggbb colour or a plain name." >&2
-        exit 1
-    fi
+  if ! [[ $val =~ ^#[0-9a-fA-F]{6}$ || $val =~ ^[A-Za-z0-9\ ._+-]*$ ]]; then
+    echo "Refusing theme '$NAME': '$key' has an unexpected value: $val" >&2
+    echo "Values must be a #rrggbb colour or a plain name." >&2
+    exit 1
+  fi
 done < <(sed -nE 's/^([a-z_]+)[[:space:]]*=[[:space:]]*"([^"]*)".*/\1 \2/p' "$COLORS")
 
 # The icon theme name goes into the same sed script, so check it too
 ICONS_CHOSEN=$(cat "$DIR/icons" 2>/dev/null || true)
 if [ -n "$ICONS_CHOSEN" ] && ! [[ $ICONS_CHOSEN =~ ^[A-Za-z0-9\ ._+-]*$ ]]; then
-    echo "Ignoring $DIR/icons: '$ICONS_CHOSEN' is not a plain icon theme name" >&2
-    ICONS_CHOSEN=""
+  echo "Ignoring $DIR/icons: '$ICONS_CHOSEN' is not a plain icon theme name" >&2
+  ICONS_CHOSEN=""
 fi
 
 # Render: each key becomes {{ key }} in the templates, plus {{ key_hex }} and {{ key_rgb }} for colours.
 subs=$(mktemp)
 trap 'rm -f "$subs"' EXIT
 {
-    printf 's|{{ home }}|%s|g\n' "$HOME"
-    printf 's|{{ prefer_dark }}|%s|g\n' "$([ "$(value mode)" = dark ] && echo 1 || echo 0)"
-    printf 's|{{ icon_theme }}|%s|g\n' "$(icon_theme)"
-    sed -nE 's/^([a-z_]+)[[:space:]]*=[[:space:]]*"([^"]*)".*/\1 \2/p' "$COLORS" | while read -r key val; do
-        printf 's|{{ %s }}|%s|g\n' "$key" "$val"
-        if [[ $val == \#* ]]; then
-            printf 's|{{ %s_hex }}|%s|g\n' "$key" "${val#\#}"
-            h=${val#\#}
-            if [ ${#h} -eq 6 ]; then
-                printf 's|{{ %s_rgb }}|%d;%d;%d|g\n' "$key" \
-                    "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}"
-            fi
-        fi
-    done
-} > "$subs"
+  printf 's|{{ home }}|%s|g\n' "$HOME"
+  printf 's|{{ prefer_dark }}|%s|g\n' "$([ "$(value mode)" = dark ] && echo 1 || echo 0)"
+  printf 's|{{ icon_theme }}|%s|g\n' "$(icon_theme)"
+  sed -nE 's/^([a-z_]+)[[:space:]]*=[[:space:]]*"([^"]*)".*/\1 \2/p' "$COLORS" | while read -r key val; do
+    printf 's|{{ %s }}|%s|g\n' "$key" "$val"
+    if [[ $val == \#* ]]; then
+      printf 's|{{ %s_hex }}|%s|g\n' "$key" "${val#\#}"
+      h=${val#\#}
+      if [ ${#h} -eq 6 ]; then
+        printf 's|{{ %s_rgb }}|%d;%d;%d|g\n' "$key" \
+          "0x${h:0:2}" "0x${h:2:2}" "0x${h:4:2}"
+      fi
+    fi
+  done
+} >"$subs"
 
 mkdir -p "$OUT"
 for tpl in "$TEMPLATES"/*.tpl; do
-    out="$OUT/$(basename "${tpl%.tpl}")"
-    sed -f "$subs" "$tpl" > "$out.new"
-    if grep -q '{{ ' "$out.new"; then
-        echo "warning: $(basename "$tpl") uses a key that $NAME's colors.toml doesn't define" >&2
-    fi
-    mv "$out.new" "$out"
+  out="$OUT/$(basename "${tpl%.tpl}")"
+  sed -f "$subs" "$tpl" >"$out.new"
+  if grep -q '{{ ' "$out.new"; then
+    echo "warning: $(basename "$tpl") uses a key that $NAME's colors.toml doesn't define" >&2
+  fi
+  mv "$out.new" "$out"
 done
 # Files that root installs under /usr or /etc are rendered from templates in your home, which anything running as you
 # can edit. Install one only if every line is a shape the shipped template produces; otherwise drop it and say why.
 # check_rendered FILE REGEX: succeed if every line of FILE matches the extended regex REGEX.
 check_rendered() {
-    local f=$1 re=$2 bad
-    [ -f "$f" ] || return 1
-    bad=$(grep -nvE "$re" "$f" | head -3 || true)
-    [ -z "$bad" ] && return 0
-    echo "Not installing $(basename "$f") as root: it has lines the shipped template never makes (a template was edited?):" >&2
-    printf '  %s\n' "$bad" >&2
-    rm -f "$f"
-    return 1
+  local f=$1 re=$2 bad
+  [ -f "$f" ] || return 1
+  bad=$(grep -nvE "$re" "$f" | head -3 || true)
+  [ -z "$bad" ] && return 0
+  echo "Not installing $(basename "$f") as root: it has lines the shipped template never makes (a template was edited?):" >&2
+  printf '  %s\n' "$bad" >&2
+  rm -f "$f"
+  return 1
 }
 SDDM_RE='^(#.*|\[General\]|[a-z_]+="[^"\\$`]*"|)$'
 PLY_RE='^(#.*|\[[A-Za-z -]+\]|Name=Hypora|Description=[A-Za-z0-9 ,._-]*|ModuleName=two-step|ImageDir=/usr/share/plymouth/themes/hypora|(Font|TitleFont)=[A-Za-z0-9 ._+-]+|(BackgroundStartColor|BackgroundEndColor|ProgressBarBackgroundColor|ProgressBarForegroundColor)=0x[0-9a-fA-F]{6}|ProgressBar(Width|Height)=[0-9]+|[A-Za-z]+Alignment=[.0-9]+|Transition=none|TransitionDuration=[.0-9]+|(MessageBelowAnimation|DialogClearsFirmwareBackground|UseFirmwareBackground|UseEndAnimation|UseProgressBar|SuppressMessages|ProgressBarShowPercentComplete)=(true|false)|(Title|SubTitle)=[A-Za-z0-9 .,_-]+|)$'
@@ -112,102 +119,102 @@ check_rendered "$OUT/plymouth.plymouth" "$PLY_RE" || true
 PLYGEN=$(command -v hypora-plymouth 2>/dev/null || true)
 [ -n "$PLYGEN" ] || PLYGEN="$(dirname "$(readlink -f "$0")")/hypora-plymouth"
 if [ -x "$PLYGEN" ]; then
-    rm -rf "$OUT/plymouth"
-    "$PLYGEN" "$OUT/plymouth" \
-        --bg "$(value background)" --surface "$(value surface)" --fg "$(value foreground)" \
-        --dim "$(value dim)" --accent "$(value accent)" \
-        || echo "warning: could not draw the boot screen images" >&2
+  rm -rf "$OUT/plymouth"
+  "$PLYGEN" "$OUT/plymouth" \
+    --bg "$(value background)" --surface "$(value surface)" --fg "$(value foreground)" \
+    --dim "$(value dim)" --accent "$(value accent)" ||
+    echo "warning: could not draw the boot screen images" >&2
 fi
 
 # Wallpapers: the shell reads current/backgrounds/. A new theme starts at its first image.
 [ "$(current)" = "$NAME" ] || rm -f "$OUT/wallpaper"
 mkdir -p "$THEMES/$NAME/backgrounds"
 ln -sfn "$THEMES/$NAME/backgrounds" "$OUT/backgrounds"
-echo "$NAME" > "$OUT/name"
+echo "$NAME" >"$OUT/name"
 
 # link TARGET PATH: symlink PATH to TARGET, backing up a real file in the way.
 link() {
-    mkdir -p "$(dirname "$2")"
-    if [ -e "$2" ] && [ ! -L "$2" ]; then mv "$2" "$2.bak.$(date +%s)"; fi
-    ln -sfn "$1" "$2"
+  mkdir -p "$(dirname "$2")"
+  if [ -e "$2" ] && [ ! -L "$2" ]; then mv "$2" "$2.bak.$(date +%s)"; fi
+  ln -sfn "$1" "$2"
 }
-link "$OUT/Theme.qml"         "$HOME/.config/quickshell/Theme.qml"
-link "$OUT/kitty.conf"        "$HOME/.config/kitty/current-theme.conf"
-link "$OUT/hyprland.lua"      "$HOME/.config/hypr/theme.lua"
-link "$OUT/hyprlock.conf"     "$HOME/.config/hypr/hyprlock.conf"
-link "$OUT/gtk.css"           "$HOME/.config/gtk-3.0/gtk.css"
-link "$OUT/gtk.css"           "$HOME/.config/gtk-4.0/gtk.css"
-link "$OUT/gtk-settings.ini"  "$HOME/.config/gtk-3.0/settings.ini"
-link "$OUT/gtk-settings.ini"  "$HOME/.config/gtk-4.0/settings.ini"
-link "$OUT/qt6ct.conf"        "$HOME/.config/qt6ct/qt6ct.conf"
-link "$OUT/qt6ct.conf"        "$HOME/.config/qt5ct/qt5ct.conf"   # same format, for Qt 5 apps
-link "$OUT/gtkrc-2.0"         "$HOME/.gtkrc-2.0"                 # GTK 2 apps (HexChat)
+link "$OUT/Theme.qml" "$HOME/.config/quickshell/Theme.qml"
+link "$OUT/kitty.conf" "$HOME/.config/kitty/current-theme.conf"
+link "$OUT/hyprland.lua" "$HOME/.config/hypr/theme.lua"
+link "$OUT/hyprlock.conf" "$HOME/.config/hypr/hyprlock.conf"
+link "$OUT/gtk.css" "$HOME/.config/gtk-3.0/gtk.css"
+link "$OUT/gtk.css" "$HOME/.config/gtk-4.0/gtk.css"
+link "$OUT/gtk-settings.ini" "$HOME/.config/gtk-3.0/settings.ini"
+link "$OUT/gtk-settings.ini" "$HOME/.config/gtk-4.0/settings.ini"
+link "$OUT/qt6ct.conf" "$HOME/.config/qt6ct/qt6ct.conf"
+link "$OUT/qt6ct.conf" "$HOME/.config/qt5ct/qt5ct.conf" # same format, for Qt 5 apps
+link "$OUT/gtkrc-2.0" "$HOME/.gtkrc-2.0"                # GTK 2 apps (HexChat)
 
 # ---------- apply to what's running ----------
 if command -v gsettings >/dev/null 2>&1; then
-    gs() { gsettings set org.gnome.desktop.interface "$1" "$2" 2>/dev/null || true; }
-    gs gtk-theme "$(value gtk_theme)"
-    gs icon-theme "$(icon_theme)"
-    gs color-scheme "$(value color_scheme)"
-    gs monospace-font-name "$(value font) 11"
-    gs font-name "Liberation Sans 11"
+  gs() { gsettings set org.gnome.desktop.interface "$1" "$2" 2>/dev/null || true; }
+  gs gtk-theme "$(value gtk_theme)"
+  gs icon-theme "$(icon_theme)"
+  gs color-scheme "$(value color_scheme)"
+  gs monospace-font-name "$(value font) 11"
+  gs font-name "Liberation Sans 11"
 fi
 if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-    hyprctl reload >/dev/null 2>&1 || true
-    qs ipc call shell reload >/dev/null 2>&1 || true
+  hyprctl reload >/dev/null 2>&1 || true
+  qs ipc call shell reload >/dev/null 2>&1 || true
 fi
-pkill -USR1 -x kitty 2>/dev/null || true   # kitty reloads its config on SIGUSR1
+pkill -USR1 -x kitty 2>/dev/null || true # kitty reloads its config on SIGUSR1
 
 # The login colours file is root-owned, so update it only when sudo can be asked (terminal or install.sh).
 SDDM_CONF=/usr/share/sddm/themes/hypora/theme.conf
 # Copy hypora-greeter's `primary` line across, or a theme switch would show the login panel on every monitor.
 if [ -f "$SDDM_CONF" ] && [ -f "$OUT/sddm-theme.conf" ]; then
-    keep_primary=$(grep -E '^primary[[:space:]]*=' "$SDDM_CONF" 2>/dev/null | head -1 || true)
-    [ -n "$keep_primary" ] && printf '%s\n' "$keep_primary" >> "$OUT/sddm-theme.conf"
+  keep_primary=$(grep -E '^primary[[:space:]]*=' "$SDDM_CONF" 2>/dev/null | head -1 || true)
+  [ -n "$keep_primary" ] && printf '%s\n' "$keep_primary" >>"$OUT/sddm-theme.conf"
 fi
 if [ -f "$OUT/sddm-theme.conf" ] && [ -d "$(dirname "$SDDM_CONF")" ] && ! cmp -s "$OUT/sddm-theme.conf" "$SDDM_CONF"; then
-    if [ -w "$SDDM_CONF" ]; then
-        cat "$OUT/sddm-theme.conf" > "$SDDM_CONF"
-    elif [ -t 0 ]; then
-        sudo install -m644 "$OUT/sddm-theme.conf" "$SDDM_CONF" || true
-    fi
-    cmp -s "$OUT/sddm-theme.conf" "$SDDM_CONF" \
-        || echo "Couldn't update the login screen colors; run: sudo install -m644 $OUT/sddm-theme.conf $SDDM_CONF" >&2
+  if [ -w "$SDDM_CONF" ]; then
+    cat "$OUT/sddm-theme.conf" >"$SDDM_CONF"
+  elif [ -t 0 ]; then
+    sudo install -m644 "$OUT/sddm-theme.conf" "$SDDM_CONF" || true
+  fi
+  cmp -s "$OUT/sddm-theme.conf" "$SDDM_CONF" ||
+    echo "Couldn't update the login screen colors; run: sudo install -m644 $OUT/sddm-theme.conf $SDDM_CONF" >&2
 fi
 
 # Copy the colours (not link) to /etc/xdg/qt6ct for root Qt apps, which cannot read a path the user can change.
 QT_SYS_DIR=/etc/xdg/qt6ct
 sed "s|^color_scheme_path=.*|color_scheme_path=$QT_SYS_DIR/colors.conf|" \
-    "$OUT/qt6ct.conf" > "$OUT/qt6ct-system.conf"
-if check_rendered "$OUT/qt6ct-system.conf" "$QT_RE" && check_rendered "$OUT/qt6ct-colors.conf" "$QTC_RE" \
-   && { [ -t 0 ] || [ -w "$QT_SYS_DIR" ]; }; then
-    if ! cmp -s "$OUT/qt6ct-system.conf" "$QT_SYS_DIR/qt6ct.conf" \
-       || ! cmp -s "$OUT/qt6ct-colors.conf" "$QT_SYS_DIR/colors.conf"; then
-        sudo install -d -m755 "$QT_SYS_DIR" 2>/dev/null \
-            && sudo install -m644 "$OUT/qt6ct-system.conf" "$QT_SYS_DIR/qt6ct.conf" 2>/dev/null \
-            && sudo install -m644 "$OUT/qt6ct-colors.conf" "$QT_SYS_DIR/colors.conf" 2>/dev/null \
-            || echo "Couldn't theme Qt apps that run as root (btrfs-assistant); run: sudo hypora-theme $NAME" >&2
-    fi
+  "$OUT/qt6ct.conf" >"$OUT/qt6ct-system.conf"
+if check_rendered "$OUT/qt6ct-system.conf" "$QT_RE" && check_rendered "$OUT/qt6ct-colors.conf" "$QTC_RE" &&
+  { [ -t 0 ] || [ -w "$QT_SYS_DIR" ]; }; then
+  if ! cmp -s "$OUT/qt6ct-system.conf" "$QT_SYS_DIR/qt6ct.conf" ||
+    ! cmp -s "$OUT/qt6ct-colors.conf" "$QT_SYS_DIR/colors.conf"; then
+    sudo install -d -m755 "$QT_SYS_DIR" 2>/dev/null &&
+      sudo install -m644 "$OUT/qt6ct-system.conf" "$QT_SYS_DIR/qt6ct.conf" 2>/dev/null &&
+      sudo install -m644 "$OUT/qt6ct-colors.conf" "$QT_SYS_DIR/colors.conf" 2>/dev/null ||
+      echo "Couldn't theme Qt apps that run as root (btrfs-assistant); run: hypora-theme $NAME" >&2
+  fi
 fi
 
 # Boot screen: hypora-boot (root) installs the files and rebuilds the initramfs, so only say when it is needed.
 PLY_DIR=/usr/share/plymouth/themes/hypora
-if [ -d "$PLY_DIR" ] && [ -f "$OUT/plymouth.plymouth" ] \
-    && ! cmp -s "$OUT/plymouth.plymouth" "$PLY_DIR/hypora.plymouth"; then
-    echo "Boot screen is still on the previous theme; run: sudo hypora-boot apply"
+if [ -d "$PLY_DIR" ] && [ -f "$OUT/plymouth.plymouth" ] &&
+  ! cmp -s "$OUT/plymouth.plymouth" "$PLY_DIR/hypora.plymouth"; then
+  echo "Boot screen is still on the previous theme; run: sudo hypora-boot apply"
 fi
 
 # Console colours are kernel arguments, so just tell the user to re-apply them
 if grep -q "vt.default_red=" /proc/cmdline 2>/dev/null; then
-    echo "Text console is still on the previous theme's colours; run: sudo hypora-console apply"
+  echo "Text console is still on the previous theme's colours; run: sudo hypora-console apply"
 fi
 
 # Boot menu needs root to regenerate, so only say so, and compare first to avoid a false warning.
 GRUB_THEME_FILE=/boot/grub2/themes/hypora/theme.txt
 if [ -f "$GRUB_THEME_FILE" ] && command -v hypora-grub >/dev/null 2>&1; then
-    if ! hypora-grub print 2>/dev/null | tail -n +2 | cmp -s - "$GRUB_THEME_FILE"; then
-        echo "Boot menu is still on the previous theme's colours; run: sudo hypora-grub apply"
-    fi
+  if ! hypora-grub print 2>/dev/null | tail -n +2 | cmp -s - "$GRUB_THEME_FILE"; then
+    echo "Boot menu is still on the previous theme's colours; run: sudo hypora-grub apply"
+  fi
 fi
 
 echo "Theme set to $NAME. Already-open GTK and Qt apps pick it up when restarted."
