@@ -13,7 +13,7 @@ The `hypora` RPM carries the files; `hypora-setup` configures the machine and yo
 ## One-time COPR setup
 
 1. Create the project (COPR user = your Fedora account name) and add this repo as an SCM source: type `git`, spec `hypora.spec`, "make srpm" with `.copr/Makefile`, chroots for the Fedora releases you support.
-2. After the first build, put the repo key's fingerprint into `HYPORA_COPR_FPR` in `install-copr.sh` (and set `HYPORA_COPR` if your COPR name differs from `mizfitxtm/hypora`).
+2. The repo key fingerprint is pinned in `HYPORA_COPR_FPR` in `install-copr.sh`; update it if the COPR project is ever deleted and recreated (the key changes).
 3. Bump `Version:` in `hypora.spec` for each release and add a `%changelog` line.
 
 ## Updating

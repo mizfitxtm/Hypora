@@ -67,35 +67,42 @@ for svc in dnf5daemon-server packagekit; do
   fi
 done
 
+# enable_copr OWNER/PROJECT FINGERPRINT: `copr enable` trusts the first key offered, so check it against a recorded fingerprint.
+enable_copr() {
+  local repo=$1 fpr=$2 owner=${1%/*} project=${1#*/} key f pinned=0
+  log "Enabling COPR $repo"
+  dnf_run copr enable -y "$repo"
+  key=$(mktemp)
+  if curl -fsSL "https://download.copr.fedorainfracloud.org/results/$repo/pubkey.gpg" -o "$key" &&
+    key_ok "$key" "$fpr"; then
+    sudo rpm --import "$key"
+    # Point the repo at the verified key, or dnf would refetch one from the network and accept any key later.
+    sudo install -m644 "$key" "/etc/pki/rpm-gpg/RPM-GPG-KEY-hypora-$project"
+    for f in /etc/yum.repos.d/_copr*"$owner"*"$project"*.repo; do
+      [ -f "$f" ] || continue
+      sudo sed -i "s|^gpgkey=.*|gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-hypora-$project|" "$f" &&
+        pinned=1
+    done
+    if [ "$pinned" -eq 1 ]; then
+      log "$repo signing key verified and pinned"
+    else
+      warn "Could not pin the $repo key; dnf may fetch it again"
+    fi
+  else
+    rm -f "$key"
+    sudo dnf copr disable -y "$repo" >/dev/null 2>&1 || true
+    die "The $repo signing key did not match the expected fingerprint. Stopping."
+  fi
+  rm -f "$key"
+}
+
 log "Preparing repositories"
 dnf_install dnf-plugins-core
 
 # Fedora ships no Hyprland or uwsm; the sdegler/hyprland COPR does and tracks current releases.
 sudo dnf copr disable -y solopasha/hyprland >/dev/null 2>&1 || true
-# `copr enable` trusts the first key offered, so check it against a recorded fingerprint before installing.
 HYPRLAND_COPR_FPR=64BBBF013D1CA5E4BE5B0552C043104207862204
-log "Enabling COPR sdegler/hyprland"
-sudo dnf copr enable -y sdegler/hyprland
-copr_key=$(mktemp)
-if curl -fsSL "https://download.copr.fedorainfracloud.org/results/sdegler/hyprland/pubkey.gpg" -o "$copr_key" &&
-  key_ok "$copr_key" "$HYPRLAND_COPR_FPR"; then
-  sudo rpm --import "$copr_key"
-  # Point the repo at the verified key, or dnf would refetch one from the network and accept any key later.
-  sudo install -m644 "$copr_key" /etc/pki/rpm-gpg/RPM-GPG-KEY-hypora-hyprland
-  copr_pinned=0
-  for repo in /etc/yum.repos.d/_copr*sdegler*hyprland*.repo; do
-    [ -f "$repo" ] || continue
-    sudo sed -i 's|^gpgkey=.*|gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-hypora-hyprland|' "$repo" &&
-      copr_pinned=1
-  done
-  [ "$copr_pinned" -eq 1 ] || warn "Could not pin the Hyprland COPR key; dnf may fetch it again"
-  log "Hyprland COPR signing key verified and pinned"
-else
-  rm -f "$copr_key"
-  sudo dnf copr disable -y sdegler/hyprland >/dev/null 2>&1 || true
-  die "The Hyprland COPR signing key did not match the expected fingerprint. Stopping."
-fi
-rm -f "$copr_key"
+enable_copr sdegler/hyprland "$HYPRLAND_COPR_FPR"
 available quickshell || die "quickshell not found in enabled repos (it ships in Fedora 42+)."
 
 # Extras (virtualization, network tools) are asked about, not default; INSTALL_EXTRAS=yes|no answers ahead.
@@ -157,12 +164,10 @@ brave) BROWSER_APP=com.brave.Browser ;;
 esac
 
 
-# Hypora's own COPR. HYPORA_COPR_FPR is the repo key's fingerprint, filled in once the COPR exists; empty skips the check.
+# Hypora's own COPR. The fingerprint is the repo key's; it changes if the COPR project is deleted and recreated.
 HYPORA_COPR=${HYPORA_COPR:-mizfitxtm/hypora}
-HYPORA_COPR_FPR=
-log "Enabling COPR $HYPORA_COPR"
-dnf_run copr enable -y "$HYPORA_COPR"
-[ -n "$HYPORA_COPR_FPR" ] || warn "The Hypora COPR key is not pinned yet, so dnf trusts whatever key the COPR offers"
+HYPORA_COPR_FPR=387BFC4E4D37EADD33056EB41602D18E965BCEC2
+enable_copr "$HYPORA_COPR" "$HYPORA_COPR_FPR"
 
 log "Installing Hypora (this brings in the required packages)"
 dnf_install hypora
