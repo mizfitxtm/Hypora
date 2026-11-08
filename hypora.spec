@@ -1,6 +1,6 @@
 Name:           hypora
 Version:        0.1.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
 URL:            https://github.com/mizfitxtm/Hypora
@@ -119,5 +119,8 @@ install -m755 hypora-setup %{buildroot}%{_bindir}/hypora-setup
 %{_bindir}/hypora-setup
 
 %changelog
+* Sun Nov 08 2026 mizfitxtm <noreply@users.noreply.github.com> - 0.1.0-2
+- Point links at the renamed GitHub account
+
 * Sun Nov 08 2026 mizfitxtm <noreply@users.noreply.github.com> - 0.1.0-1
 - First COPR build
