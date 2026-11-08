@@ -42,9 +42,19 @@ One thing to know: **Nautilus hard-requires `localsearch`**, a background indexe
 
 **Optional, offered at the end of the install, both defaulting to no**
 
-- **RPM Fusion** carries what Fedora won't ship — media codecs, NVIDIA's own driver, firmware for some Broadcom and Realtek chips. Answer ahead with `ENABLE_RPMFUSION=yes ./hypora-setup`. It is a different trust decision from the rest of Hypora: the release RPMs come over HTTPS from rpmfusion.org and can't be pinned to a fingerprint the way the Hyprland COPR and Anthropic's repository are, because both the package and its key change with every Fedora release. Packages from it are GPG-checked normally once it's enabled. Remove with `sudo dnf remove rpmfusion-free-release rpmfusion-nonfree-release`
-- **Claude Code** comes from Anthropic's signed dnf repository (stable channel; `sudo dnf upgrade claude-code` to update) and needs a paid Claude plan. Answer ahead with `INSTALL_CLAUDE=yes ./hypora-setup`; a non-interactive run skips it, and a re-run detects an existing install rather than asking again. Run `claude` to log in; remove with `sudo dnf remove claude-code && sudo rm /etc/yum.repos.d/claude-code.repo`. The menu's **Tools > Claude Code** entry appears only when `claude` is on your `PATH`
+- **RPM Fusion** carries what Fedora won't ship — media codecs, NVIDIA's own driver, firmware for some Broadcom and Realtek chips. Answer ahead with `ENABLE_RPMFUSION=yes hypora-setup`. It is a different trust decision from the rest of Hypora: the release RPMs come over HTTPS from rpmfusion.org and can't be pinned to a fingerprint the way the Hyprland COPR and Anthropic's repository are, because both the package and its key change with every Fedora release. Packages from it are GPG-checked normally once it's enabled. Remove with `sudo dnf remove rpmfusion-free-release rpmfusion-nonfree-release`
+- **Claude Code** comes from Anthropic's signed dnf repository (stable channel; `sudo dnf upgrade claude-code` to update) and needs a paid Claude plan. Answer ahead with `INSTALL_CLAUDE=yes hypora-setup`; a non-interactive run skips it, and a re-run detects an existing install rather than asking again. Run `claude` to log in; remove with `sudo dnf remove claude-code && sudo rm /etc/yum.repos.d/claude-code.repo`. The menu's **Tools > Claude Code** entry appears only when `claude` is on your `PATH`
 - Nothing else AI-related is installed, and nothing is installed without asking
+
+### Who you trust for updates
+
+Hypora installs from two COPR repositories, so updates to the desktop come from two people who are not Fedora: `mizfitxtm/hypora` (this project) and `sdegler/hyprland` (Hyprland and uwsm, which run your whole session). COPR packages are signed with each project's own key and are not reviewed by Fedora. What that means in practice:
+
+- **A stolen account is the main risk.** Whoever controls either COPR, or the GitHub account behind this one, can publish a package that `hypora-setup` later runs with `sudo`. Hypora packages are built from tagged releases, not from every commit, so a stray push does not reach users.
+- **Compare the key before you accept it.** dnf imports a COPR key the first time it is used and shows the fingerprint. The readme lists both, and [mizfitxtm.dev/hypora/keys](https://mizfitxtm.dev/hypora/keys/) repeats them from a separate host. If the three disagree, stop. `hypora-setup` re-checks the keys afterwards and warns on a mismatch; the optional `install.sh` checks them before installing anything.
+- **Updates are not automatic for these packages.** Automatic updates are limited to security advisories (`upgrade_type = security`), and COPR packages carry none, so `hypora` and Hyprland change only when you run `sudo dnf upgrade`. Keep that setting.
+- **The source is the same public repository.** The RPM is built from this repo (`hypora.spec`), and `/usr/share/hypora` is root-owned, which is safer than the earlier install from a clone in your home directory.
+- **What the repositories can see:** dnf contacts COPR and its mirrors for updates, so they see your IP address and which packages you request, as any repository would. The packages themselves send nothing.
 
 ## Secrets and the keyring
 
@@ -69,9 +79,9 @@ This edits the file that decides whether you can log in, so it is done carefully
 - **The original is backed up** to `/etc/pam.d/sddm.hypora-<timestamp>` before anything is written, and the installer prints the path.
 - **It is idempotent** — a second run detects the lines and leaves them alone.
 
-The `password` line goes in `/etc/authselect/system-auth` (what `/etc/pam.d/system-auth` links to) **before** the `pam_unix` password line, not after: `pam_unix` is `sufficient`, so a successful change ends the stack there and a line placed after it never runs. `authselect apply-changes` rewrites that file; re-run `./hypora-setup` to put the line back.
+The `password` line goes in `/etc/authselect/system-auth` (what `/etc/pam.d/system-auth` links to) **before** the `pam_unix` password line, not after: `pam_unix` is `sufficient`, so a successful change ends the stack there and a line placed after it never runs. `authselect apply-changes` rewrites that file; re-run `hypora-setup` to put the line back.
 
-Skip it with `KEYRING_AUTOUNLOCK=no ./hypora-setup`, or undo it by deleting those three lines.
+Skip it with `KEYRING_AUTOUNLOCK=no hypora-setup`, or undo it by deleting those three lines.
 
 If you are **still** asked for a keyring password after this, the usual cause is a login keyring that already exists with a *different* password — PAM is offering your login password and the keyring wants the old one. Either change the keyring's password to match your login password in Seahorse (`gnome-keyring` ships it as **Passwords and Keys**), or delete `~/.local/share/keyrings/login.keyring` and let it be recreated, which loses whatever was stored in it.
 

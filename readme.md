@@ -45,15 +45,7 @@ None of those three install choices is enforced, but skipping encryption or btrf
 
 ## Install
 
-`install.sh` enables the Hyprland and Hypora COPRs, installs the `hypora` package, adds the optional apps you pick (a browser, extras, Flatpaks), then runs `hypora-setup` to configure the machine and your account.
-
-```bash
-git clone https://github.com/mizfitxtm/Hypora.git
-cd Hypora
-./install.sh
-```
-
-Without the optional apps, the package and setup alone are:
+Three commands, as your normal user. The Hypora COPR pulls in the Hyprland COPR it depends on, and `hypora-setup` does the rest: it asks about a browser, apps and extras, then configures the machine and your account.
 
 ```bash
 sudo dnf copr enable mizfitxtm/hypora
@@ -61,7 +53,16 @@ sudo dnf install hypora
 hypora-setup
 ```
 
-Both are safe to re-run, and anything replaced is saved as `<name>.bak.<timestamp>`. Pick a theme with `THEME=TokyoNight hypora-setup`. What it does step by step, and how to update: [Installing in detail](docs/reference.md#installing-in-detail) and [COPR](docs/copr.md).
+When dnf asks to import a signing key, check the fingerprint on screen against these:
+
+| COPR | Fingerprint |
+|---|---|
+| mizfitxtm/hypora | `387B FC4E 4D37 EADD 3305 6EB4 1602 D18E 965B CEC2` |
+| sdegler/hyprland | `64BB BF01 3D1C A5E4 BE5B 0552 C043 1042 0786 2204` |
+
+The same table is published at [mizfitxtm.dev/hypora/keys](https://mizfitxtm.dev/hypora/keys/), a separate place from this repository, so one compromised account cannot change both. `hypora-setup` checks them again afterwards. It is safe to re-run, and anything it replaces is saved as `<name>.bak.<timestamp>`. Pick a theme with `THEME=TokyoNight hypora-setup`. To update, run `sudo dnf upgrade hypora` and then `hypora-setup`.
+
+**Optional: the installer script.** `install.sh` in this repo does the same three steps, but checks each key against the recorded fingerprint *before* installing anything. Clone the repo and run `./install.sh` if you prefer that. The details are in [Installing in detail](docs/reference.md#installing-in-detail) and [COPR](docs/copr.md).
 
 Reboot when it finishes. SDDM shows the Hypora login screen and starts the **Hyprland (uwsm-managed)** session. No login screen? Start it from a text console with `uwsm start hyprland-uwsm.desktop`.
 

@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = (ROOT / "install.sh").read_text() + (ROOT / "lib.sh").read_text()
+SRC = "".join((ROOT / f).read_text() for f in ("install.sh", "hypora-setup", "lib.sh"))
 
 
 def func(name):
@@ -25,7 +25,8 @@ def bash(script, stdin=None, env=None):
 class BrowserTests(unittest.TestCase):
     def pick(self, env=None):
         # No terminal here, so the menu itself is not reached; the env var and the default are.
-        return bash(f"{func('pick_browser')}\npick_browser", stdin="", env=env).stdout.strip()
+        # flatpak is stubbed so an installed browser on this machine cannot change the answer
+        return bash(f"flatpak() {{ return 1; }}\n{func('pick_browser')}\npick_browser", stdin="", env=env).stdout.strip()
 
     def test_env_choice(self):
         for b in ("firefox", "chromium", "zen", "brave"):
@@ -78,6 +79,28 @@ class DnfRunTests(unittest.TestCase):
         out = self.run_fake("echo Nothing to do.")
         self.assertNotIn("WARN", out)
         self.assertIn("rc=0", out)
+
+
+class CoprKeyTests(unittest.TestCase):
+    def check(self, keys, fpr):
+        # rpm is stubbed to list the keys it "holds": "<version> <summary>" per line
+        script = (f"rpm() {{ printf '%s\\n' {keys}; }}\n{func('check_copr_key')}\n"
+                  f"check_copr_key mizfitxtm/hypora {fpr}; echo rc=$?")
+        return bash(script).stdout.strip()
+
+    GOOD = "387bfc4e4d37eadd33056eb41602d18e965bcec2"
+
+    def test_matching_full_fingerprint(self):
+        self.assertEqual(self.check(f"'{self.GOOD} gpg(mizfitxtm_hypora (None))'", self.GOOD.upper()), "rc=0")
+
+    def test_matching_short_id(self):
+        self.assertEqual(self.check(f"'{self.GOOD[-8:]} gpg(mizfitxtm_hypora (None))'", self.GOOD), "rc=0")
+
+    def test_other_key_for_the_same_copr_fails(self):
+        self.assertEqual(self.check("'deadbeef gpg(mizfitxtm_hypora (None))'", self.GOOD), "rc=1")
+
+    def test_keys_for_other_coprs_are_ignored(self):
+        self.assertEqual(self.check("'deadbeef gpg(someone_else (None))'", self.GOOD), "rc=0")
 
 
 class SyntaxTests(unittest.TestCase):

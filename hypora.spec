@@ -1,6 +1,7 @@
 Name:           hypora
-Version:        0.1.0
-Release:        3%{?dist}
+Version:        0.2.0
+# Pre-release: 0.1.alpha sorts before the final 0.2.0-1
+Release:        0.1.alpha%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
 URL:            https://github.com/mizfitxtm/Hypora
@@ -112,6 +113,9 @@ find %{buildroot}%{_datadir}/hypora -name __pycache__ -prune -exec rm -rf {} +
 install -m644 lib.sh %{buildroot}%{_datadir}/hypora/lib.sh
 install -m755 hypora-setup %{buildroot}%{_bindir}/hypora-setup
 
+%post
+echo "Hypora is installed. Run hypora-setup as your normal user to finish."
+
 %files
 %license LICENSE
 %doc readme.md docs
@@ -119,6 +123,12 @@ install -m755 hypora-setup %{buildroot}%{_bindir}/hypora-setup
 %{_bindir}/hypora-setup
 
 %changelog
+* Sun Nov 08 2026 mizfitxtm <noreply@users.noreply.github.com> - 0.2.0-0.1.alpha
+- First tagged release: installs from the COPR with three commands; hypora-setup asks about and installs the browser, apps and extras; install.sh is optional
+
+* Sun Nov 08 2026 mizfitxtm <noreply@users.noreply.github.com> - 0.1.0-4
+- hypora-setup now asks about and installs the browser, apps and extras; install.sh is optional
+
 * Sun Nov 08 2026 mizfitxtm <noreply@users.noreply.github.com> - 0.1.0-3
 - install.sh is now the COPR bootstrap; messages and docs point at hypora-setup
 

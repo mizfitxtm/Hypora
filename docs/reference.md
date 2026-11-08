@@ -44,23 +44,21 @@ Also needed:
 
 ## Installing in detail
 
-`install.sh` is the front door; `hypora-setup` does the configuring. Together they:
+`sudo dnf install hypora` installs the files; `hypora-setup` does the configuring. (`install.sh` is an optional wrapper that enables both COPRs with their keys checked first, installs `hypora` and runs `hypora-setup`.) `hypora-setup`:
 
-1. Check you're on Fedora and not running as root, and report whether `/` is btrfs and encrypted
-2. Enable the `sdegler/hyprland` COPR (Fedora doesn't package Hyprland or uwsm) and Hypora's own COPR, each with its signing key checked against a recorded fingerprint, then install the `hypora` package, whose requirements bring in PipeWire with wiremix, BlueZ, zsh, Neovim, fastfetch and the rest
-3. Ask about a browser (Firefox, Chromium, Zen or Brave, as a Flatpak), the optional Flatpak apps and, only if you say yes (or set `INSTALL_EXTRAS=yes`), `@virtualization` and network tools (nmap, aircrack-ng, wireshark/tshark)
-4. Run `hypora-setup`, which:
-   - checks whether this is a laptop or a desktop (battery and backlight pieces install only on a laptop) and that Hyprland is 0.55+
-   - installs Oh My Zsh and the LazyVim starter, both pinned to a commit, and makes zsh your login shell (an existing `~/.config/nvim` is left alone)
-   - installs JetBrainsMono Nerd Font and the system font defaults
-   - enables NetworkManager, upower, bluetooth and power profiles; points DNS at systemd-resolved with DNS-over-TLS; randomizes MAC addresses; enables `firewalld` in the closed `public` zone; turns on automatic security updates for packages and flatpaks; sets up keyring auto-unlock; and sets the default boot target to graphical
-   - installs the theme palettes and templates into `~/.config/hypora/` and applies the chosen theme
-   - **copies** `config/hypr/hyprland.lua`, `config/quickshell/`, the GTK settings and the themes into `~/.config/`, and `applications/*.desktop` into `~/.local/share/applications/`
-   - installs the SDDM login theme, disables GDM/LightDM/greetd, enables SDDM, and installs the Plymouth boot theme — the slowest step, because it rebuilds the initramfs
-   - copies `bin/` into `~/.local/bin/`, except the root-owned helpers, which go to `/usr/local/bin`
-   - checks hardware, firmware and drivers (see [Hardware](hardware.md))
-   - on btrfs, sets up snapper, btrfs-assistant and btrfsmaintenance (see [Snapshots](storage.md#snapshots))
-5. Offer to remove another desktop if one is installed — session, leftovers and orphans, keeping what Hypora is built on — then **offer RPM Fusion**, Steam and **Claude Code**. All default to no
+1. Checks you're on Fedora and not running as root, that the COPR keys are the recorded ones, and whether `/` is btrfs and encrypted
+2. Asks about a browser (Firefox, Chromium, Zen or Brave, as a Flatpak; one that is already installed is kept), the optional Flatpak apps and, only if you say yes (or set `INSTALL_EXTRAS=yes`), `@virtualization` and network tools (nmap, aircrack-ng, wireshark/tshark)
+3. Checks whether this is a laptop or a desktop (battery and backlight pieces install only on a laptop) and that Hyprland is 0.55+
+4. Installs Oh My Zsh and the LazyVim starter, both pinned to a commit, and makes zsh your login shell (an existing `~/.config/nvim` is left alone)
+5. Installs JetBrainsMono Nerd Font and the system font defaults
+6. Enables NetworkManager, upower, bluetooth and power profiles; points DNS at systemd-resolved with DNS-over-TLS; randomizes MAC addresses; enables `firewalld` in the closed `public` zone; turns on automatic security updates for packages and flatpaks; sets up keyring auto-unlock; and sets the default boot target to graphical
+7. Installs the theme palettes and templates into `~/.config/hypora/` and applies the chosen theme
+8. **Copies** `config/hypr/hyprland.lua`, `config/quickshell/`, the GTK settings and the themes into `~/.config/`, and `applications/*.desktop` into `~/.local/share/applications/`
+9. Installs the SDDM login theme, disables GDM/LightDM/greetd, enables SDDM, and installs the Plymouth boot theme — the slowest step, because it rebuilds the initramfs
+10. Copies `bin/` into `~/.local/bin/`, except the root-owned helpers, which go to `/usr/local/bin`
+11. Checks hardware, firmware and drivers (see [Hardware](hardware.md))
+12. On btrfs, sets up snapper, btrfs-assistant and btrfsmaintenance (see [Snapshots](storage.md#snapshots))
+13. Offers to remove another desktop if one is installed — session, leftovers and orphans, keeping what Hypora is built on — then **offers RPM Fusion**, Steam and **Claude Code**. All default to no, and all are at the end of the run so a declined answer costs nothing
 
 Both scripts are safe to re-run. Pick a theme with the `THEME` variable (it must exist under `themes/`); re-runs keep the theme you last chose with `hypora-theme`:
 
@@ -189,8 +187,8 @@ Don't run another notification daemon (Mako, dunst, swaync) or polkit agent alon
 
 ```
 .
-├── install.sh              # bootstrap: COPRs, the hypora package, optional apps, then hypora-setup
-├── hypora-setup            # configures the machine and your account from /usr/share/hypora
+├── install.sh              # optional wrapper: COPRs with keys checked, hypora, then hypora-setup
+├── hypora-setup            # the installer proper: apps, machine and account setup, run from /usr/share/hypora
 ├── lib.sh                  # helpers both scripts share
 ├── hypora.spec             # the RPM (see copr.md)
 ├── config/                 # copied into ~/.config

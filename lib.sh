@@ -118,3 +118,27 @@ pin_clone() {
   fi
 }
 
+# Recorded COPR identities. The Hypora fingerprint changes if that COPR project is deleted and recreated.
+HYPRLAND_COPR_FPR=64BBBF013D1CA5E4BE5B0552C043104207862204
+HYPORA_COPR=${HYPORA_COPR:-mizfitxtm/hypora}
+HYPORA_COPR_FPR=387BFC4E4D37EADD33056EB41602D18E965BCEC2
+
+# check_copr_key OWNER/PROJECT FINGERPRINT: fails if rpm holds a key for that COPR that is not the recorded one (newer rpm names a key by its full fingerprint, older by the last 8 digits).
+check_copr_key() {
+  local fpr=${2,,} tag=${1/\//_} id line
+  while read -r id line; do
+    case "$line" in *"$tag"*) [ "$id" = "$fpr" ] || [ "$id" = "${fpr: -8}" ] || return 1 ;; esac
+  done < <(rpm -qa 'gpg-pubkey*' --qf '%{VERSION} %{SUMMARY}\n')
+  return 0
+}
+
+# free_dnf_lock: stop the background dnf services, which hold dnf's lock so every dnf command would wait forever.
+free_dnf_lock() {
+  for svc in dnf5daemon-server packagekit; do
+    if systemctl is-active --quiet "$svc" 2>/dev/null; then
+      log "Stopping $svc so it releases the dnf lock (D-Bus restarts it on demand)"
+      sudo timeout 60 systemctl stop "$svc" ||
+        warn "Could not stop $svc; dnf steps may stall waiting for its lock"
+    fi
+  done
+}
