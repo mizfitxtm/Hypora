@@ -95,7 +95,52 @@ prune() {
 }
 
 # available PKG: true if dnf can find the package
-available() { [ -n "$(dnf repoquery --quiet "$1" 2>/dev/null)" ]; }
+available() { [ -n "$(dnf repoquery --quiet "$1" 2>/dev/null </dev/null)" ]; }
+
+# dnf_run ARGS: runs dnf as root; if it hangs 30 s after "Nothing to do" (as it did on some machines), stops it and warns.
+dnf_run() {
+  local log pid tailpid rc hung=0 _
+  log=$(mktemp)
+  sudo dnf "$@" >"$log" 2>&1 &
+  pid=$!
+  tail -n +1 -f "$log" --pid="$pid" 2>/dev/null &
+  tailpid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if grep -q "Nothing to do" "$log"; then
+      # Give dnf up to 30 s to exit, checking every second so a normal exit costs nothing
+      for _ in $(seq "${DNF_HANG_WAIT:-30}"); do
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 1
+      done
+      if kill -0 "$pid" 2>/dev/null; then
+        kill "$pid" 2>/dev/null
+        hung=1
+      fi
+      break
+    fi
+    sleep 1
+  done
+  rc=0
+  wait "$pid" 2>/dev/null || rc=$?
+  wait "$tailpid" 2>/dev/null || true
+  rm -f "$log"
+  # "Nothing to do" means the work was already done, so a stop after it is not a failure
+  if [ "$hung" -eq 1 ]; then
+    warn "dnf hung after 'Nothing to do' (dnf $*); stopped it and went on"
+    return 0
+  fi
+  return "$rc"
+}
+
+# dnf install that skips the call when every package is present.
+dnf_install() {
+  local args=() missing=0 a
+  for a in "$@"; do
+    args+=("$a")
+    case "$a" in -*) ;; *) rpm -q --whatprovides "$a" >/dev/null 2>&1 || missing=1 ;; esac
+  done
+  [ "$missing" -eq 0 ] || dnf_run install -y "${args[@]}"
+}
 
 # fetch_verified URL DEST SHA256: refuse a download whose hash differs, since HTTPS does not prove it is the reviewed file.
 fetch_verified() {
@@ -215,7 +260,7 @@ for svc in dnf5daemon-server packagekit; do
 done
 
 log "Preparing repositories"
-sudo dnf install -y dnf-plugins-core
+dnf_install dnf-plugins-core
 
 # Fedora ships no Hyprland or uwsm; the sdegler/hyprland COPR does and tracks current releases.
 sudo dnf copr disable -y solopasha/hyprland >/dev/null 2>&1 || true
@@ -279,6 +324,30 @@ want_apps() {
 }
 if want_apps; then APPS=yes; else APPS=no; fi
 
+# Browser (a sandboxed flatpak): BROWSER=firefox|chromium|zen|brave answers ahead; no terminal means Firefox.
+pick_browser() {
+  case "${BROWSER:-}" in
+  firefox | chromium | zen | brave)
+    echo "$BROWSER"
+    return
+    ;;
+  esac
+  if [ ! -t 0 ]; then
+    echo firefox
+    return
+  fi
+  printf '\n%s\n  1) Firefox (default)\n  2) Chromium\n  3) Zen\n  4) Brave\n' "Choose a browser:" >&2
+  read -r -p "Number [1]: " answer
+  case "$answer" in 2) echo chromium ;; 3) echo zen ;; 4) echo brave ;; *) echo firefox ;; esac
+}
+BROWSER=$(pick_browser)
+case "$BROWSER" in
+chromium) BROWSER_APP=org.chromium.Chromium ;;
+zen) BROWSER_APP=app.zen_browser.zen ;;
+brave) BROWSER_APP=com.brave.Browser ;;
+*) BROWSER_APP=org.mozilla.firefox ;;
+esac
+
 # ---------- packages ----------
 REQUIRED=(
   hyprland hyprland-guiutils hyprlock hypridle hyprsunset uwsm quickshell kitty git
@@ -329,7 +398,7 @@ OPTIONAL=(
 EXTRAS_PKGS=(nmap aircrack-ng wireshark wireshark-cli)
 
 log "Installing required packages"
-sudo dnf install -y "${REQUIRED[@]}"
+dnf_install "${REQUIRED[@]}"
 
 # Mark these user-installed so autoremove cannot take gnome-keyring-pam and gcr and break keyring unlock.
 PROTECT_USER=(
@@ -359,9 +428,9 @@ fi
 if [ "$EXTRAS" = yes ]; then
   log "Installing virtualization (@virtualization group)"
   # Without virt-viewer: its remote-viewer duplicates RustDesk and virt-manager has its own console.
-  sudo dnf group install -y virtualization --exclude=virt-viewer ||
+  dnf_run group install -y virtualization --exclude=virt-viewer ||
     warn "Could not install the virtualization group"
-  sudo dnf install -y --skip-unavailable "${EXTRAS_PKGS[@]}" ||
+  dnf_install --skip-unavailable "${EXTRAS_PKGS[@]}" ||
     warn "Some network tools could not be installed"
 fi
 # Remove virt-viewer if an earlier install added it (nothing depends on it)
@@ -384,19 +453,19 @@ fi
 
 log "Installing optional packages"
 # One transaction, and --skip-unavailable skips names this Fedora release lacks.
-sudo dnf install -y --skip-unavailable "${OPTIONAL[@]}" ||
+dnf_install --skip-unavailable "${OPTIONAL[@]}" ||
   warn "Some optional packages could not be installed"
 # `install` leaves an already-installed (possibly old) Hyprland as it is
-sudo dnf upgrade -y hyprland uwsm || true
+dnf_run upgrade -y hyprland uwsm || true
 
 # Laptop-only packages: brightnessctl needs a backlight, and upower stays required for wireless peripherals' batteries.
 if [ "$IS_LAPTOP" = yes ] && available brightnessctl; then
-  sudo dnf install -y brightnessctl || warn "Skipped brightnessctl (brightness keys will not work)"
+  dnf_install brightnessctl || warn "Skipped brightnessctl (brightness keys will not work)"
 fi
 
 # Fedora defaults to tuned-ppd (same D-Bus API); keep power-profiles-daemon if installed since the two conflict.
 if ! rpm -q power-profiles-daemon >/dev/null 2>&1; then
-  sudo dnf install -y tuned-ppd || warn "Could not install tuned-ppd (power modes unavailable)"
+  dnf_install tuned-ppd || warn "Could not install tuned-ppd (power modes unavailable)"
 fi
 
 # Remove old impala and bluetui binaries; the Network and Bluetooth windows replace them.
@@ -454,7 +523,7 @@ elif ! available snapper; then
   warn "No snapper package for this Fedora release, so snapshots were not set up"
 else
   log "Installing snapper (btrfs filesystem found)"
-  if ! sudo dnf install -y snapper; then
+  if ! dnf_install snapper; then
     warn "Could not install snapper"
   else
     snapper_any=0
@@ -480,7 +549,7 @@ else
 
     # snapper has no GUI of its own; btrfs-assistant is one for browsing snapshots
     if available btrfs-assistant; then
-      sudo dnf install -y btrfs-assistant ||
+      dnf_install btrfs-assistant ||
         warn "Could not install btrfs-assistant (snapshots stay command-line only)"
     else
       warn "No btrfs-assistant package; snapshots are command-line only"
@@ -491,7 +560,7 @@ fi
 # btrfs housekeeping: scrub finds bit rot and balance frees mostly-empty chunks; trim and defrag are left off.
 if has_btrfs && available btrfsmaintenance; then
   log "Setting up btrfs scrub and balance"
-  if sudo dnf install -y btrfsmaintenance; then
+  if dnf_install btrfsmaintenance; then
     for cfg in /etc/sysconfig/btrfsmaintenance /etc/default/btrfsmaintenance; do
       [ -f "$cfg" ] || continue
       kv_set "$cfg" BTRFS_SCRUB_PERIOD monthly
@@ -561,13 +630,13 @@ sudo fc-cache -f >/dev/null 2>&1 || true
 
 # Flatpak: Flathub is added as a system remote, installed apps are skipped, SKIP_FLATPAKS=1 installs none.
 log "Setting up Flatpak"
-sudo dnf install -y flatpak
+dnf_install flatpak
 sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo ||
   warn "Could not add the Flathub remote"
 
 # Apps handling untrusted input (the browser) are sandboxed flatpaks; the rest are native.
 FLATPAKS=(
-  org.mozilla.firefox # publisher-verified by Mozilla
+  "$BROWSER_APP" # Firefox is publisher-verified by Mozilla; the others come from Flathub as published
 )
 # Bundled apps, installed only when want_apps said yes
 APP_FLATPAKS=(
@@ -595,6 +664,11 @@ else
         warn "Could not install $app"
     fi
   done
+  # Only a fresh install gets a default; Default Apps overrides it and hyprland.lua's SUPER+B reads it.
+  if [ -z "$(xdg-mime query default text/html 2>/dev/null)" ]; then
+    xdg-mime default "$BROWSER_APP.desktop" text/html x-scheme-handler/http x-scheme-handler/https ||
+      warn "Could not set $BROWSER as the default browser"
+  fi
 fi
 
 # Oh My Zsh: clone a pinned commit instead of running its installer; zshrc turns off auto-update so the pin holds.
@@ -701,8 +775,8 @@ fi
 
 # Automatic security updates: dnf5-automatic for advisories, our timer for flatpaks; enabled without --now (dnf lock).
 log "Enabling automatic security updates"
-sudo dnf install -y dnf5-plugin-automatic ||
-  sudo dnf install -y dnf-automatic ||
+dnf_install dnf5-plugin-automatic ||
+  dnf_install dnf-automatic ||
   warn "Could not install dnf-automatic"
 if command -v dnf-automatic >/dev/null 2>&1; then
   # dnf5's plugin and dnf4's dnf-automatic both read this file
@@ -858,7 +932,7 @@ if ! "$REPO/bin/hypora-hardware" fingerprint --hardware >/dev/null 2>&1; then
   esac
 else
   log "Fingerprint reader detected; installing fprintd to see whether it is supported"
-  if sudo dnf install -y fprintd fprintd-pam; then
+  if dnf_install fprintd fprintd-pam; then
     if "$REPO/bin/hypora-hardware" fingerprint >/dev/null 2>&1; then
       enable_authselect_feature with-fingerprint "fingerprint login" &&
         log "  enrol a finger with: fprintd-enroll" ||
@@ -1043,7 +1117,7 @@ if rpm -q rpmfusion-free-release >/dev/null 2>&1; then
 elif want_rpmfusion; then
   log "Enabling RPM Fusion"
   rel=$(rpm -E %fedora)
-  sudo dnf install -y \
+  dnf_run install -y \
     "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$rel.noarch.rpm" \
     "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$rel.noarch.rpm" ||
     warn "Could not enable RPM Fusion"
@@ -1056,7 +1130,7 @@ if rpm -q steam >/dev/null 2>&1; then
   log "Steam already installed natively"
 elif rpm -q rpmfusion-nonfree-release >/dev/null 2>&1 && available steam; then
   log "Installing Steam (native)"
-  sudo dnf install -y steam || warn "Could not install Steam"
+  dnf_install steam || warn "Could not install Steam"
 else
   warn "Steam not installed: it needs RPM Fusion nonfree, which is not enabled"
   warn "  Enable it and run: sudo dnf install steam"
@@ -1117,7 +1191,7 @@ elif want_claude; then
     # The repo file points at this verified copy, not at a key URL (see the COPR above)
     sudo install -m644 "$key" /etc/pki/rpm-gpg/RPM-GPG-KEY-claude-code
     sudo install -m644 "$REPO/system/yum.repos.d/claude-code.repo" /etc/yum.repos.d/claude-code.repo
-    sudo dnf install -y claude-code || warn "Could not install claude-code"
+    dnf_install claude-code || warn "Could not install claude-code"
   else
     warn "Claude Code signing key missing or fingerprint mismatch; skipped Claude Code"
   fi

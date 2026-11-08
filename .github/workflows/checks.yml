@@ -10,5 +10,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python3 tools/test-security.py
       - run: python3 tools/test-plugin.py
+      - run: python3 tools/test-installer.py
       - run: python3 tools/check-theme.py
       - run: node tools/qml-syntax-check.js

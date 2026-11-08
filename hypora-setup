@@ -1,0 +1,744 @@
+#!/usr/bin/env bash
+# hypora-setup: configures this machine and your account from the files the hypora package installed.
+# Run as your normal user; safe to re-run, and it keeps files you edited (see the manifest below).
+set -euo pipefail
+
+REPO="${HYPORA_DATA:-/usr/share/hypora}"
+CONF="$HOME/.config"
+# Keep the theme chosen last time (hypora-theme) unless THEME is set
+THEME="${THEME:-$(cat "$CONF/hypora/current/name" 2>/dev/null || echo Nord)}"
+. "$REPO/lib.sh"
+
+# ---------- sanity checks ----------
+[ "$(id -u)" -ne 0 ] || die "Run as your normal user, not root (sudo is used where needed)."
+. /etc/os-release
+[ "${ID:-}" = "fedora" ] || die "This script targets Fedora (found: ${ID:-unknown})."
+[ -f "$REPO/themes/$THEME/colors.toml" ] || die "Theme '$THEME' not found in $REPO/themes/"
+[ -d "$REPO/config/quickshell" ] || die "Missing $REPO/config/quickshell"
+
+# Helpers: every copied file is recorded with its checksum so a re-run can tell your edits from replaceable files.
+MANIFEST="$CONF/hypora/installed.sha256"
+NEW_MANIFEST=$(mktemp)
+trap 'rm -f "$NEW_MANIFEST"' EXIT
+
+# With `set -e` a failure ends the script silently, so print what happened and that the install is partial.
+on_err() {
+  local code=$? line=$1
+  printf '\033[1;31mxx\033[0m %s\n' \
+    "Install failed at line $line (exit $code). This leaves a PARTIAL install:" >&2
+  printf '   %s\n' \
+    "config files may be in place while the theme, login screen and power setup are not." \
+    "Fix the error above and re-run hypora-setup — it is safe to re-run and will finish" \
+    "the steps it missed. Nothing is removed on a failed run." >&2
+}
+trap 'on_err $LINENO' ERR
+
+sha() { sha256sum "$1" | cut -c1-64; }
+# installed_sha PATH: the checksum recorded for PATH by the last install
+installed_sha() { [ -f "$MANIFEST" ] && awk -v p="$1" 'substr($0, 67) == p { print substr($0, 1, 64) }' "$MANIFEST"; }
+
+# put SRC DEST [MODE]: copy a file into place and record it in the manifest
+put() {
+  local src=$1 dest=$2 mode=${3:-644} new
+  # Guard against a directory (from a glob) giving sha256sum's unhelpful error.
+  [ -f "$src" ] || die "put: $src is not a regular file (installer bug)"
+  new=$(sha "$src")
+  mkdir -p "$(dirname "$dest")"
+  if [ -L "$dest" ]; then
+    rm "$dest" # older Hypora installs symlinked into the clone
+  elif [ -f "$dest" ]; then
+    local cur
+    cur=$(sha "$dest")
+    if [ "$cur" != "$new" ] && [ "$cur" != "$(installed_sha "$dest")" ]; then
+      mv "$dest" "$dest.bak.$(date +%s)"
+      warn "Backed up your edited $dest"
+    fi
+  elif [ -e "$dest" ]; then
+    mv "$dest" "$dest.bak.$(date +%s)"
+    warn "Backed up existing $dest"
+  fi
+  install -m "$mode" "$src" "$dest"
+  printf '%s  %s\n' "$new" "$dest" >>"$NEW_MANIFEST"
+}
+
+# Remove files an earlier run installed that Hypora no longer ships (unless you edited them)
+prune() {
+  [ -f "$MANIFEST" ] || return 0
+  local h p
+  while IFS= read -r line; do
+    h=${line:0:64}
+    p=${line:66}
+    grep -qxF "$line" "$NEW_MANIFEST" && continue
+    awk -v p="$p" 'substr($0, 67) == p { f = 1 } END { exit !f }' "$NEW_MANIFEST" && continue
+    if [ -f "$p" ] && [ "$(sha "$p")" = "$h" ]; then rm "$p"; fi
+  done <"$MANIFEST"
+}
+
+# Decide laptop or desktop once (`hypora-power is-laptop`, override with IS_LAPTOP), since a battery alone proves nothing.
+if [ -n "${IS_LAPTOP:-}" ]; then
+  machine_kind="forced by IS_LAPTOP=$IS_LAPTOP"
+elif machine_kind=$("$REPO/bin/hypora-power" is-laptop 2>/dev/null); then
+  IS_LAPTOP=yes
+else
+  IS_LAPTOP=no
+fi
+if [ "$IS_LAPTOP" = yes ]; then
+  log "Laptop: $machine_kind — battery, backlight and charger handling will be set up"
+else
+  log "Desktop: $machine_kind — skipping battery, backlight and charger handling"
+fi
+
+# Mark these user-installed so autoremove cannot take gnome-keyring-pam and gcr and break keyring unlock.
+PROTECT_USER=(
+  gsettings-desktop-schemas xorg-x11-server-Xwayland
+  gnome-keyring gnome-keyring-pam gcr
+  nautilus gvfs gnome-calculator gnome-disk-utility gnome-software
+  gnome-software gnome-calendar baobab simple-scan papers evince
+  loupe gnome-text-editor
+  pcsc-lite pcsc-lite-ccid opensc
+)
+# Check with rpm first (fast) so a missing package cannot fail the whole dnf call.
+protect_now=()
+for p in "${PROTECT_USER[@]}"; do
+  rpm -q "$p" >/dev/null 2>&1 && protect_now+=("$p")
+done
+if [ ${#protect_now[@]} -gt 0 ]; then
+  log "Protecting ${#protect_now[@]} required packages from dnf autoremove"
+  # One dnf call with a timeout (it waits forever on a held lock); -C skips metadata, with a second try without it.
+  if ! sudo timeout 45 dnf -C -y mark user "${protect_now[@]}" >/dev/null 2>&1 &&
+    ! sudo timeout 90 dnf -y mark user "${protect_now[@]}" >/dev/null 2>&1; then
+    warn "Could not mark packages user-installed (dnf was busy or locked), so a later"
+    warn "  'dnf autoremove' may remove them. Run this when nothing else is using dnf:"
+    warn "    sudo dnf mark user ${protect_now[*]}"
+  fi
+fi
+
+# Laptop-only packages: brightnessctl needs a backlight, and upower stays required for wireless peripherals' batteries.
+if [ "$IS_LAPTOP" = yes ] && available brightnessctl; then
+  dnf_install brightnessctl || warn "Skipped brightnessctl (brightness keys will not work)"
+fi
+
+# Fedora defaults to tuned-ppd (same D-Bus API); keep power-profiles-daemon if installed since the two conflict.
+if ! rpm -q power-profiles-daemon >/dev/null 2>&1; then
+  dnf_install tuned-ppd || warn "Could not install tuned-ppd (power modes unavailable)"
+fi
+
+# Remove old impala and bluetui binaries; the Network and Bluetooth windows replace them.
+sudo rm -f /usr/local/bin/impala /usr/local/bin/bluetui
+
+# Hyprland reads hyprland.lua only from 0.55; `|| true` because grep exits 1 on no match and pipefail would end the script.
+hypr_ver=$(Hyprland --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+if [ -n "$hypr_ver" ] && [ "$(printf '%s\n' 0.55.0 "$hypr_ver" | sort -V | head -1)" != 0.55.0 ]; then
+  die "Hyprland $hypr_ver is too old for hyprland.lua (need 0.55+). Run: sudo dnf upgrade --refresh hyprland"
+fi
+
+# Snapshots use snapper, not Timeshift, which needs an `@` subvolume Fedora lacks; unattended updates get one via a drop-in.
+has_btrfs() {
+  findmnt -nt btrfs >/dev/null 2>&1 && return 0
+  lsblk -no FSTYPE 2>/dev/null | grep -qx btrfs
+}
+
+# kv_set FILE KEY VALUE: set KEY="VALUE" in a shell-style config, adding the line if missing.
+kv_set() {
+  local f=$1 key=$2 val=$3
+  [ -f "$f" ] || return 0
+  if sudo grep -q "^${key}=" "$f"; then
+    sudo sed -i "s|^${key}=.*|${key}=\"${val}\"|" "$f"
+  else
+    printf '%s="%s"\n' "$key" "$val" | sudo tee -a "$f" >/dev/null
+  fi
+}
+
+snapper_set() { kv_set "/etc/snapper/configs/$1" "$2" "$3"; }
+
+# snapper_setup NAME PATH: create a config, then lower the retention (default is too much for a laptop disk).
+snapper_setup() {
+  local name=$1 path=$2
+  if [ -f "/etc/snapper/configs/$name" ]; then
+    log "  snapper config '$name' already exists, leaving it alone"
+  elif sudo snapper -c "$name" create-config "$path"; then
+    log "  snapper config '$name' created for $path"
+  else
+    warn "Could not create a snapper config for $path"
+    return 1
+  fi
+  snapper_set "$name" TIMELINE_CREATE yes
+  snapper_set "$name" TIMELINE_LIMIT_HOURLY 5
+  snapper_set "$name" TIMELINE_LIMIT_DAILY 7
+  snapper_set "$name" TIMELINE_LIMIT_WEEKLY 4
+  snapper_set "$name" TIMELINE_LIMIT_MONTHLY 2
+  snapper_set "$name" TIMELINE_LIMIT_YEARLY 0
+  snapper_set "$name" NUMBER_LIMIT 10
+  snapper_set "$name" NUMBER_LIMIT_IMPORTANT 5
+}
+
+if ! has_btrfs; then
+  log "No btrfs filesystem, so snapshots were not set up"
+elif ! available snapper; then
+  warn "No snapper package for this Fedora release, so snapshots were not set up"
+else
+  log "Installing snapper (btrfs filesystem found)"
+  if ! dnf_install snapper; then
+    warn "Could not install snapper"
+  else
+    snapper_any=0
+    # / first, since an update is what can break it
+    if [ "$(findmnt -fno FSTYPE / 2>/dev/null)" = btrfs ]; then
+      snapper_setup root / && snapper_any=1
+    else
+      log "  / is not btrfs, so there is no config for it"
+    fi
+    # /home separately (usually its own subvolume): it holds your own files
+    if [ "$(findmnt -fno FSTYPE /home 2>/dev/null)" = btrfs ] &&
+      [ "$(findmnt -fno TARGET /home 2>/dev/null)" = /home ]; then
+      snapper_setup home /home && snapper_any=1
+    fi
+
+    if [ "$snapper_any" -eq 1 ]; then
+      sudo systemctl enable --now snapper-timeline.timer snapper-cleanup.timer \
+        2>/dev/null || warn "Could not enable the snapper timers"
+      log "  timeline and cleanup timers enabled"
+    else
+      warn "snapper is installed but no config could be created, so nothing is snapshotted"
+    fi
+
+    # snapper has no GUI of its own; btrfs-assistant is one for browsing snapshots
+    if available btrfs-assistant; then
+      dnf_install btrfs-assistant ||
+        warn "Could not install btrfs-assistant (snapshots stay command-line only)"
+    else
+      warn "No btrfs-assistant package; snapshots are command-line only"
+    fi
+  fi
+fi
+
+# btrfs housekeeping: scrub finds bit rot and balance frees mostly-empty chunks; trim and defrag are left off.
+if has_btrfs && available btrfsmaintenance; then
+  log "Setting up btrfs scrub and balance"
+  if dnf_install btrfsmaintenance; then
+    for cfg in /etc/sysconfig/btrfsmaintenance /etc/default/btrfsmaintenance; do
+      [ -f "$cfg" ] || continue
+      kv_set "$cfg" BTRFS_SCRUB_PERIOD monthly
+      kv_set "$cfg" BTRFS_BALANCE_PERIOD monthly
+      kv_set "$cfg" BTRFS_TRIM_PERIOD none
+      kv_set "$cfg" BTRFS_DEFRAG_PERIOD none
+    done
+    # The package's refresh unit reads that config and enables the matching timers
+    if systemctl cat btrfsmaintenance-refresh.service >/dev/null 2>&1; then
+      # `start`, not `enable`: this unit has no [Install] section
+      sudo systemctl start btrfsmaintenance-refresh.service ||
+        warn "Could not apply the btrfsmaintenance schedule"
+      # The .path unit re-runs the refresh when the config file changes
+      sudo systemctl enable --now btrfsmaintenance-refresh.path 2>/dev/null ||
+        warn "btrfsmaintenance timers won't refresh if you edit its config later"
+    else
+      for t in btrfs-scrub btrfs-balance; do
+        systemctl cat "$t.timer" >/dev/null 2>&1 &&
+          sudo systemctl enable --now "$t.timer" 2>/dev/null ||
+          true
+      done
+    fi
+  else
+    warn "Could not install btrfsmaintenance (no scheduled scrub or balance)"
+  fi
+fi
+
+# JetBrainsMono Nerd Font is not packaged for Fedora; install it system-wide so the sddm login screen can use it.
+NERD_FONT_VERSION=v3.5.1
+NERD_FONT_SHA=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf
+NERD_FONT_DIR=/usr/local/share/fonts/JetBrainsMonoNerdFont
+if ! ls "$NERD_FONT_DIR"/*.ttf >/dev/null 2>&1; then
+  log "Installing JetBrainsMono Nerd Font"
+  tmp=$(mktemp -d)
+  if fetch_verified \
+    "https://github.com/ryanoasis/nerd-fonts/releases/download/$NERD_FONT_VERSION/JetBrainsMono.tar.xz" \
+    "$tmp/font.tar.xz" "$NERD_FONT_SHA" &&
+    tar -xJf "$tmp/font.tar.xz" -C "$tmp"; then
+    sudo install -d "$NERD_FONT_DIR"
+    sudo install -m644 "$tmp"/*.ttf "$NERD_FONT_DIR/"
+  else
+    warn "Could not install JetBrainsMono Nerd Font"
+  fi
+  rm -rf "$tmp"
+fi
+sudo install -m644 "$REPO/system/fontconfig/50-hypora.conf" /etc/fonts/conf.d/50-hypora.conf
+
+# Gruvbox Plus icons (GPL-3.0) are not packaged for Fedora, so use the release zip
+GRUVBOX_ICONS=/usr/share/icons/Gruvbox-Plus-Dark
+if [ -f "$GRUVBOX_ICONS/index.theme" ]; then
+  log "Gruvbox Plus icons already installed"
+else
+  log "Installing Gruvbox Plus icons"
+  tmp=$(mktemp -d)
+  if fetch_verified \
+    "https://github.com/SylEleuth/gruvbox-plus-icon-pack/releases/download/v6.6.0/gruvbox-plus-icon-pack-6.6.0.zip" \
+    "$tmp/icons.zip" b10a8d6378d7b88ca6d21b90797a4aa7bbdbb1907ea74101a4b9db439d2773a2 &&
+    unzip -q "$tmp/icons.zip" -d "$tmp"; then
+    sudo cp -r "$tmp/Gruvbox-Plus-Dark" "$tmp/Gruvbox-Plus-Light" /usr/share/icons/
+    sudo gtk-update-icon-cache -qf "$GRUVBOX_ICONS" 2>/dev/null || true
+  else
+    warn "Could not install the Gruvbox Plus icons; Papirus stays the fallback"
+  fi
+  rm -rf "$tmp"
+fi
+sudo fc-cache -f >/dev/null 2>&1 || true
+
+# Oh My Zsh: clone a pinned commit instead of running its installer; zshrc turns off auto-update so the pin holds.
+if [ -d "$HOME/.oh-my-zsh" ]; then
+  log "Oh My Zsh already installed"
+else
+  log "Installing Oh My Zsh"
+  pin_clone https://github.com/ohmyzsh/ohmyzsh.git \
+    60c9a7a839b790cd905d0fd4419435124fd1bdc0 \
+    "$HOME/.oh-my-zsh" || warn "Could not install Oh My Zsh"
+fi
+
+# LazyVim starter, only if you have no Neovim config yet
+if [ -e "$CONF/nvim/init.lua" ] || [ -e "$CONF/nvim/init.vim" ]; then
+  log "Keeping your existing Neovim config"
+elif pin_clone https://github.com/LazyVim/starter \
+  803bc181d7c0d6d5eeba9274d9be49b287294d99 "$CONF/nvim"; then
+  rm -rf "$CONF/nvim/.git"
+  log "Installed the LazyVim starter"
+else
+  warn "Could not install the LazyVim starter"
+fi
+
+# ---------- services ----------
+log "Enabling services"
+sudo systemctl enable --now NetworkManager || warn "Could not enable NetworkManager"
+sudo systemctl enable --now upower || warn "Could not enable upower (battery widget may show nothing)"
+sudo systemctl enable --now pcscd.socket || warn "Could not enable pcscd (smart card readers will not work)"
+sudo systemctl enable --now bluetooth 2>/dev/null || warn "No bluetooth service (the Bluetooth tile will show Unavailable)"
+if rpm -q tuned-ppd >/dev/null 2>&1; then
+  sudo systemctl enable --now tuned tuned-ppd || warn "Could not enable tuned-ppd"
+else
+  sudo systemctl enable --now power-profiles-daemon || warn "Could not enable power-profiles-daemon"
+fi
+
+if rpm -q libvirt-daemon >/dev/null 2>&1; then
+  sudo systemctl enable --now libvirtd || warn "Could not enable libvirtd"
+  sudo usermod -aG libvirt "$USER" || true
+fi
+# Capturing packets as a normal user needs the wireshark group
+if getent group wireshark >/dev/null; then
+  sudo usermod -aG wireshark "$USER" || true
+fi
+
+# Put machines that an earlier version switched to iwd back on the default Wi-Fi backend.
+IWD_CONF=/etc/NetworkManager/conf.d/hypora-iwd.conf
+if [ -e "$IWD_CONF" ]; then
+  log "Restoring NetworkManager's default Wi-Fi backend"
+  sudo rm -f "$IWD_CONF"
+  sudo systemctl disable iwd 2>/dev/null || true
+  sudo systemctl enable wpa_supplicant 2>/dev/null || true
+fi
+# DNS through systemd-resolved and per-network MAC addresses (see the config files).
+log "Setting up DNS and MAC address privacy"
+sudo install -d /etc/systemd/resolved.conf.d /etc/NetworkManager/conf.d
+sudo install -m644 "$REPO/system/systemd/resolved.conf.d/hypora-dns.conf" /etc/systemd/resolved.conf.d/hypora-dns.conf
+sudo install -m644 "$REPO/system/NetworkManager/conf.d/hypora-dns.conf" /etc/NetworkManager/conf.d/hypora-dns.conf
+sudo install -m644 "$REPO/system/NetworkManager/conf.d/hypora-mac.conf" /etc/NetworkManager/conf.d/hypora-mac.conf
+sudo systemctl enable --now systemd-resolved || warn "Could not enable systemd-resolved"
+# /etc/resolv.conf must point at resolved's stub, or apps skip resolved
+if [ "$(readlink -f /etc/resolv.conf)" != /run/systemd/resolve/stub-resolv.conf ]; then
+  sudo ln -sf ../run/systemd/resolve/stub-resolv.conf /etc/resolv.conf ||
+    warn "Could not point /etc/resolv.conf at systemd-resolved"
+fi
+# Restarting NetworkManager briefly drops the connection, so do it after the downloads
+sudo systemctl try-restart systemd-resolved NetworkManager 2>/dev/null || true
+
+# Firewall: close Fedora's wide default zone; LocalSend opens in `home` only, SSH closes unless KEEP_SSH=yes.
+KEEP_SSH=${KEEP_SSH:-}
+if [ -z "$KEEP_SSH" ] && [ -n "${SSH_CONNECTION:-}${SSH_TTY:-}${SSH_CLIENT:-}" ]; then
+  KEEP_SSH=yes
+  warn "Running over SSH, so SSH is being left enabled and open"
+fi
+
+log "Enabling the firewall"
+sudo systemctl enable --now firewalld || warn "Could not enable firewalld"
+if systemctl is-active --quiet firewalld; then
+  sudo firewall-cmd --quiet --set-default-zone=public || warn "Could not set the default firewall zone"
+  if [ "$KEEP_SSH" != yes ]; then
+    sudo firewall-cmd --quiet --permanent --remove-service=ssh 2>/dev/null || true
+  fi
+  # Close LocalSend's port in `public` if an earlier version opened it
+  if sudo firewall-cmd --permanent --query-port=53317/tcp >/dev/null 2>&1; then
+    log "Closing LocalSend's port 53317 in the public zone (see the LocalSend note in the readme)"
+    sudo firewall-cmd --quiet --permanent --remove-port=53317/tcp || true
+    sudo firewall-cmd --quiet --permanent --remove-port=53317/udp || true
+  fi
+  if [ "${LOCALSEND_LAN:-yes}" != no ]; then
+    sudo firewall-cmd --quiet --permanent --zone=home --add-port=53317/tcp || true # LocalSend
+    sudo firewall-cmd --quiet --permanent --zone=home --add-port=53317/udp || true
+    log "LocalSend's port is open in the home zone only. Put a trusted network in that zone with:"
+    log "  nmcli connection modify <name> connection.zone home"
+  fi
+  sudo firewall-cmd --quiet --reload || true
+fi
+
+# Also stop sshd so a blocked port is not reopened by mistake; it stays installed (`systemctl enable --now sshd`).
+if [ "$KEEP_SSH" != yes ]; then
+  if systemctl is-enabled --quiet sshd 2>/dev/null || systemctl is-active --quiet sshd 2>/dev/null; then
+    log "Disabling the SSH server (KEEP_SSH=yes to keep it)"
+    sudo systemctl disable --now sshd 2>/dev/null || warn "Could not disable sshd"
+  fi
+fi
+
+# Automatic security updates: dnf5-automatic for advisories, our timer for flatpaks; enabled without --now (dnf lock).
+log "Enabling automatic security updates"
+dnf_install dnf5-plugin-automatic ||
+  dnf_install dnf-automatic ||
+  warn "Could not install dnf-automatic"
+if command -v dnf-automatic >/dev/null 2>&1; then
+  # dnf5's plugin and dnf4's dnf-automatic both read this file
+  sudo install -d /etc/dnf
+  sudo install -m644 "$REPO/system/dnf/automatic.conf" /etc/dnf/automatic.conf
+  sudo systemctl enable dnf5-automatic.timer 2>/dev/null ||
+    sudo systemctl enable dnf-automatic.timer 2>/dev/null ||
+    warn "Could not enable the automatic update timer"
+
+  # Snapshot before each unattended update via a drop-in; the `-` means a failed snapshot never blocks the update.
+  if [ -f /etc/snapper/configs/root ]; then
+    for unit in dnf5-automatic dnf-automatic; do
+      if systemctl cat "$unit.service" >/dev/null 2>&1; then
+        sudo install -d "/etc/systemd/system/$unit.service.d"
+        sudo tee "/etc/systemd/system/$unit.service.d/10-hypora-snapshot.conf" \
+          >/dev/null <<'DROPIN'
+# Added by Hypora: snapshot / before an unattended update; the `-` keeps a failed snapshot from cancelling it.
+[Service]
+ExecStartPre=-/usr/bin/snapper -c root create --type single \
+    --cleanup-algorithm number --description "before automatic update"
+DROPIN
+        sudo systemctl daemon-reload
+        log "  snapshotting / before each unattended update ($unit)"
+        break
+      fi
+    done
+  fi
+else
+  warn "dnf-automatic is not available; system updates stay manual"
+fi
+sudo install -m644 "$REPO/system/systemd/system/hypora-flatpak-update.service" \
+  /etc/systemd/system/hypora-flatpak-update.service
+sudo install -m644 "$REPO/system/systemd/system/hypora-flatpak-update.timer" \
+  /etc/systemd/system/hypora-flatpak-update.timer
+sudo systemctl daemon-reload
+sudo systemctl enable hypora-flatpak-update.timer ||
+  warn "Could not enable the flatpak update timer"
+
+# Fix hardware that did not come up; install the root-owned copy first, since the checkout is user-writable.
+if [ -x "$REPO/bin/hypora-hardware" ]; then
+  log "Checking hardware, firmware and drivers"
+  sudo install -m755 -o root -g root "$REPO/bin/hypora-hardware" /usr/local/bin/hypora-hardware
+  sudo /usr/local/bin/hypora-hardware fix || warn "Some hardware could not be fixed"
+  "$REPO/bin/hypora-hardware" probe || true
+fi
+
+sudo systemctl set-default graphical.target
+
+# Themes: install palettes and templates; bin/hypora-theme renders them near the end.
+log "Installing themes"
+for f in "$REPO"/themes/*/colors.toml; do
+  put "$f" "$CONF/hypora/themes/$(basename "$(dirname "$f")")/colors.toml"
+done
+for f in "$REPO"/themes/templates/*.tpl; do
+  put "$f" "$CONF/hypora/templates/$(basename "$f")"
+done
+
+# Older installs had a 'current' symlink here; the rendered theme is now in hypora/current/
+if [ -L "$CONF/hypora/themes/current" ]; then rm "$CONF/hypora/themes/current"; fi
+
+# Hyprland 0.55+ uses a Lua config (hyprland.lua).
+log "Installing Hyprland config"
+if [ -f "$REPO/config/hypr/hyprland.lua" ]; then
+  put "$REPO/config/hypr/hyprland.lua" "$CONF/hypr/hyprland.lua"
+  grep -Eq 'exec_cmd\(.*\b(qs|quickshell)\b' "$REPO/config/hypr/hyprland.lua" ||
+    warn "hyprland.lua has no hl.exec_cmd line for Quickshell (e.g. hl.exec_cmd(\"uwsm app -- qs\"))"
+  [ -e "$CONF/hypr/hyprland.conf" ] &&
+    warn "A legacy ~/.config/hypr/hyprland.conf exists; move it away if Hyprland misbehaves"
+else
+  warn "No config/hypr/hyprland.lua found; skipping"
+fi
+
+# Quickshell: copy each file into ~/.config/quickshell (hypora-theme links in Theme.qml).
+log "Installing Quickshell config"
+mkdir -p "$CONF/quickshell"
+# Older installs symlinked into the clone; delete links that no longer resolve
+find "$CONF/quickshell" -maxdepth 1 -type l ! -exec test -e {} \; -delete
+for f in "$REPO"/config/quickshell/*; do
+  [ -f "$f" ] && put "$f" "$CONF/quickshell/$(basename "$f")"
+done
+
+# Login screen (SDDM): a minimal Hyprland session with a small QML theme coloured from the active Hypora theme.
+log "Installing SDDM login screen"
+SDDM_THEME=/usr/share/sddm/themes/hypora
+sudo install -d "$SDDM_THEME" /etc/sddm.conf.d
+sudo install -m644 "$REPO"/system/sddm/hypora/{Main.qml,metadata.desktop} "$SDDM_THEME/"
+sudo install -m644 "$REPO/system/sddm/hyprland.lua" "$SDDM_THEME/hyprland.lua"
+# theme.conf stays root-owned because the greeter reads it before login; hypora-theme uses sudo to update it.
+sudo install -m644 -o root -g root "$REPO/system/sddm/hypora/theme.conf" "$SDDM_THEME/theme.conf"
+# Fix the owner if an earlier version of this installer made it user-writable
+sudo chown root:root "$SDDM_THEME/theme.conf"
+sudo install -m644 "$REPO/system/sddm/10-hypora.conf" /etc/sddm.conf.d/10-hypora.conf
+
+for dm in gdm lightdm greetd; do
+  if systemctl is-enabled -q "$dm" 2>/dev/null; then
+    sudo systemctl disable "$dm"
+    warn "Disabled $dm (Hypora uses SDDM)"
+  fi
+done
+sudo systemctl enable sddm
+
+# Keyring unlock and fingerprint login both go through authselect, which edits PAM and survives updates.
+enable_authselect_feature() {
+  local feature=$1 what=$2
+  if ! command -v authselect >/dev/null 2>&1; then
+    warn "authselect is not installed, so $what was not enabled"
+    return 1
+  fi
+  if ! authselect current >/dev/null 2>&1; then
+    warn "No authselect profile is selected, so $what was not enabled"
+    return 1
+  fi
+  if authselect current 2>/dev/null | grep -q -- "$feature"; then
+    log "  $what already enabled"
+    return 0
+  fi
+  if sudo authselect enable-feature "$feature" >/dev/null 2>&1; then
+    log "  enabled $feature"
+    return 0
+  fi
+  warn "Could not enable $feature, so $what was not set up"
+  return 1
+}
+
+if [ "${KEYRING_AUTOUNLOCK:-yes}" = no ]; then
+  log "Skipping keyring auto-unlock (KEYRING_AUTOUNLOCK=no)"
+else
+  log "Enabling keyring auto-unlock"
+  enable_authselect_feature with-pam-gnome-keyring "keyring auto-unlock" || true
+  # The `password` line must come before pam_unix's (`sufficient` stops PAM); resolve the system-auth symlink first.
+  PAM_PW=$(readlink -f /etc/pam.d/system-auth)
+  if [ -f "$PAM_PW" ] && ! awk '
+            /^-?password[[:space:]].*pam_gnome_keyring\.so/ { k = NR }
+            /^password[[:space:]]+sufficient[[:space:]]+pam_unix\.so/ && !u { u = NR }
+            END { exit !(k && u && k < u) }' "$PAM_PW"; then
+    if grep -Eq '^password[[:space:]]+sufficient[[:space:]]+pam_unix\.so' "$PAM_PW"; then
+      sudo cp -aL "$PAM_PW" "/etc/pam.d/system-auth.hypora-$(date +%Y%m%d-%H%M%S)"
+      sudo sed -i '/^-password[[:space:]].*pam_gnome_keyring\.so/d' "$PAM_PW"
+      sudo sed -i '/^password[[:space:]]\+sufficient[[:space:]]\+pam_unix\.so/i -password   optional   pam_gnome_keyring.so use_authtok' "$PAM_PW"
+      log "  placed the keyring re-key line in $PAM_PW"
+    else
+      warn "No pam_unix password line in $PAM_PW, so the keyring re-key line was not added"
+    fi
+  fi
+fi
+
+# Fingerprint login: check the hardware first, install fprintd only if it passes, then change PAM.
+if ! "$REPO/bin/hypora-hardware" fingerprint --hardware >/dev/null 2>&1; then
+  # No or unsupported reader, so skip fprintd; `|| true` because the command fails by design under pipefail.
+  fp_why=$("$REPO/bin/hypora-hardware" fingerprint --hardware 2>&1 | tail -1 || true)
+  case "$fp_why" in
+  *unsupported*) log "Skipping fingerprint setup: $fp_why" ;;
+  esac
+else
+  log "Fingerprint reader detected; installing fprintd to see whether it is supported"
+  if dnf_install fprintd fprintd-pam; then
+    if "$REPO/bin/hypora-hardware" fingerprint >/dev/null 2>&1; then
+      enable_authselect_feature with-fingerprint "fingerprint login" &&
+        log "  enrol a finger with: fprintd-enroll" ||
+        warn "Could not enable fingerprint login"
+    else
+      warn "Your fingerprint reader has no libfprint driver, so enrolment cannot"
+      warn "  work and fingerprint login was left off. Details:"
+      warn "  $("$REPO/bin/hypora-hardware" fingerprint 2>&1 | tail -1 || true)"
+    fi
+  else
+    warn "Could not install fprintd"
+  fi
+fi
+
+# ---------- terminal and session environment ----------
+log "Installing kitty, uwsm, zsh, fastfetch and Neovim settings"
+put "$REPO/config/kitty/kitty.conf" "$CONF/kitty/kitty.conf"
+put "$REPO/config/uwsm/env" "$CONF/uwsm/env"
+put "$REPO/config/xdg-terminals.list" "$CONF/xdg-terminals.list"
+put "$REPO/config/hypr/hypridle.conf" "$CONF/hypr/hypridle.conf"
+put "$REPO/config/zsh/zshrc" "$HOME/.zshrc"
+put "$REPO/config/fastfetch/config.jsonc" "$CONF/fastfetch/config.jsonc"
+put "$REPO/config/fastfetch/hypora.txt" "$CONF/fastfetch/hypora.txt"
+# Only this one file under ~/.config/nvim is ours; the rest is yours
+[ -d "$CONF/nvim" ] && put "$REPO/config/nvim/lua/plugins/hypora.lua" "$CONF/nvim/lua/plugins/hypora.lua"
+
+# zsh as the login shell
+if [ "$(getent passwd "$USER" | cut -d: -f7)" != "$(command -v zsh)" ]; then
+  sudo chsh -s "$(command -v zsh)" "$USER" &&
+    log "Login shell set to zsh (starts at your next login)" ||
+    warn "Could not set zsh as your login shell; run: chsh -s $(command -v zsh)"
+fi
+
+# App entries so Hypora's windows (e.g. Display Settings) show up in the launcher.
+log "Installing app entries"
+for f in "$REPO"/applications/*.desktop; do
+  [ -f "$f" ] && put "$f" "$HOME/.local/share/applications/$(basename "$f")"
+done
+
+# Root-run scripts go to root-owned /usr/local/bin, or anything that can write ~/.local/bin could get root.
+ROOT_OWNED=(hypora-security hypora-console hypora-hardware hypora-grub hypora-power
+  hypora-replace-de hypora-greeter hypora-boot)
+
+for name in "${ROOT_OWNED[@]}"; do
+  log "Installing $name to /usr/local/bin (root-owned)"
+  sudo install -m755 -o root -g root "$REPO/bin/$name" "/usr/local/bin/$name"
+  # Remove a user-writable copy left by an earlier version
+  rm -f "$HOME/.local/bin/$name"
+done
+
+# Copy the main display into the theme dir for the greeter (it cannot read monitors.lua); run after the bin loop.
+primary=""
+if [ -f "$CONF/hypr/monitors.lua" ]; then
+  primary=$(sed -nE 's/^HYPORA_PRIMARY[[:space:]]*=[[:space:]]*"([A-Za-z][A-Za-z0-9-]*)".*/\1/p' \
+    "$CONF/hypr/monitors.lua" | head -1 || true)
+fi
+if [ -n "$primary" ] && [ -d /usr/share/sddm/themes/hypora ]; then
+  log "Sending the login screen to $primary"
+  sudo /usr/local/bin/hypora-greeter set "$primary" ||
+    warn "Could not set the login screen's display; run: sudo hypora-greeter set $primary"
+fi
+
+shopt -s nullglob
+bin_files=("$REPO"/bin/*)
+if [ ${#bin_files[@]} -gt 0 ]; then
+  log "Installing bin scripts to ~/.local/bin"
+  for f in "${bin_files[@]}"; do
+    # Files only: bin/* can also match a directory such as __pycache__
+    [ -f "$f" ] || continue
+    name=$(basename "$f")
+    skip=
+    for r in "${ROOT_OWNED[@]}"; do [ "$name" = "$r" ] && skip=1; done
+    [ -n "$skip" ] && continue # root-owned, installed above
+    put "$f" "$HOME/.local/bin/$name" 755
+  done
+fi
+
+# Smart cards and YubiKeys for the Flatpak browsers, which cannot see the host's OpenSC; runs after the Flatpak step.
+"$REPO/bin/hypora-smartcard" setup || warn "Smart card setup failed; run: hypora-smartcard setup"
+
+# Laptop power: nothing switches profiles on unplug under Hyprland, so hypora-power does it via udev.
+if [ "$IS_LAPTOP" = yes ]; then
+  log "Setting up laptop power management"
+  sudo /usr/local/bin/hypora-power install ||
+    warn "Could not set up automatic power switching"
+fi
+
+# Wallpapers come from themes/<Name>/backgrounds/; images you added yourself are left alone.
+log "Installing wallpapers"
+for f in "$REPO"/themes/*/backgrounds/*; do
+  [ -f "$f" ] || continue
+  theme=$(basename "$(dirname "$(dirname "$f")")")
+  put "$f" "$CONF/hypora/themes/$theme/backgrounds/$(basename "$f")"
+done
+
+# Apply the theme: render the palette into Quickshell, kitty, Hyprland, hyprlock, GTK and Qt.
+log "Applying theme: $THEME"
+"$HOME/.local/bin/hypora-theme" "$THEME"
+
+# Copy the root-owned login colours here where sudo is available, rather than hoping hypora-theme finds a terminal.
+RENDERED_SDDM="$CONF/hypora/current/sddm-theme.conf"
+if [ -f "$RENDERED_SDDM" ] && [ -d "$SDDM_THEME" ]; then
+  sudo install -m644 -o root -g root "$RENDERED_SDDM" "$SDDM_THEME/theme.conf"
+fi
+
+if command -v plymouth-set-default-theme >/dev/null 2>&1 && [ -f "$CONF/hypora/current/plymouth.plymouth" ]; then
+  log "Installing the boot screen theme"
+  # hypora-boot checks the rendered files, installs them and rebuilds the initramfs only if something changed.
+  sudo install -d -m755 /usr/share/plymouth/themes/hypora
+  sudo /usr/local/bin/hypora-boot apply ||
+    warn "Could not set the boot theme; the previous one is still in place"
+
+  # Keep the splash up until the login screen draws over it, or the GRUB menu shows between the two.
+  sudo install -d /etc/systemd/system/plymouth-quit.service.d
+  sudo install -m644 \
+    "$REPO/system/systemd/plymouth-quit.service.d/10-hypora-retain-splash.conf" \
+    /etc/systemd/system/plymouth-quit.service.d/10-hypora-retain-splash.conf
+  sudo systemctl daemon-reload
+else
+  warn "Plymouth is not installed; the boot screen stays as it is"
+fi
+
+# Boot menu: hypora-grub themes GRUB from the palette; skipped silently without GRUB (e.g. systemd-boot).
+if [ -d /boot/grub2 ] || [ -d /boot/grub ]; then
+  if command -v grub2-mkconfig >/dev/null 2>&1; then
+    log "Theming the boot menu"
+    sudo /usr/local/bin/hypora-grub apply ||
+      warn "Could not theme the boot menu; GRUB is unchanged"
+  else
+    warn "grub2-mkconfig is missing, so the boot menu was left alone"
+  fi
+else
+  log "No GRUB found, so the boot menu was left alone"
+fi
+
+# ---------- bookkeeping ----------
+prune
+mkdir -p "$(dirname "$MANIFEST")"
+mv "$NEW_MANIFEST" "$MANIFEST"
+
+# Done: print the logo in its two colours (truecolor if supported) from the same file as fastfetch.
+banner() {
+  local a b r logo="$REPO/config/fastfetch/hypora.txt"
+  if [ "${COLORTERM:-}" = "truecolor" ] || [ "${COLORTERM:-}" = "24bit" ]; then
+    a=$'\033[38;2;122;162;247m'
+    b=$'\033[38;2;195;122;247m'
+  else
+    a=$'\033[36m'
+    b=$'\033[35m'
+  fi
+  r=$'\033[0m'
+  printf '\n'
+  if [ -r "$logo" ]; then
+    sed -e "s/\$1/$a/g" -e "s/\$2/$b/g" -e "s/\$/$r/" "$logo"
+  else
+    printf '   %sH Y P O R A%s\n' "$a" "$r"
+  fi
+  printf '\n'
+}
+
+# Record the package version so you can tell what this machine was set up from.
+STAMP="$CONF/hypora/installed.version"
+mkdir -p "$(dirname "$STAMP")"
+printf 'version=%s\ndate=%s\n' "$(rpm -q --qf '%{VERSION}-%{RELEASE}' hypora 2>/dev/null || echo unknown)" "$(date -Is)" >"$STAMP"
+
+banner
+
+if [ ${#WARNINGS[@]} -eq 0 ]; then
+  printf '\033[1;32m Hypora was installed successfully.\033[0m\n\n'
+else
+  printf '\033[1;32m Hypora was installed\033[0m, with \033[1;33m%d warning(s)\033[0m:\n\n' "${#WARNINGS[@]}"
+  for w in "${WARNINGS[@]}"; do printf '   \033[1;33m!!\033[0m %s\n' "$w"; done
+  printf '\n'
+fi
+
+printf ' Set up from the hypora package %s.\n' "$(sed -n 's/^version=//p' "$STAMP")"
+printf ' Check later with: cat %s\n\n' "$STAMP"
+
+cat <<'EOF'
+ Reboot to finish. The Hypora login screen starts the Hyprland session.
+
+   sudo reboot
+
+ Group memberships and your new zsh shell also need that reboot to take effect.
+ If the desktop does not come up, switch to a console with Ctrl+Alt+F2 and run:
+
+   journalctl -b -u sddm      why the login screen failed
+   qs                         QML errors from the shell
+   hyprctl configerrors       problems in hyprland.lua
+   hypora-hardware probe      hardware with no driver, firmware or radio
+   hypora-smartcard status    smart card / YubiKey readers and browser setup
+
+ Hyprland's own log is NOT in journalctl (it sets debug.enable_stdout_logs = 0):
+
+   cat /run/user/$UID/hypr/*/hyprland.log
+
+EOF
