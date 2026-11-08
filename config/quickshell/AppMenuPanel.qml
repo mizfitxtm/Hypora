@@ -52,7 +52,7 @@ Rectangle {
             { icon: "sliders", label: "Keybindings", run: () => ShellState.keybindHelpOpen = true },
             // Use xdg-open, not a fixed browser, so a changed default browser is respected.
             { icon: "message", label: "Report a bug",
-              run: () => Apps.run(["xdg-open", "https://github.com/misfitxtm/Hypora/issues/new"]) }
+              run: () => Apps.run(["xdg-open", "https://github.com/mizfitxtm/Hypora/issues/new"]) }
         ]
     })
 

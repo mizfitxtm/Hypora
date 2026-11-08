@@ -46,11 +46,11 @@ Also needed:
 
 Two ways to get the files. Either works; the difference is only which revision you end up on.
 
-**Download a release** — a fixed set of files that was tested as a unit. On alpha this is the one to pick if you want to be able to say *which* Hypora you are reporting a bug against. Grab the source tarball from the [releases page](https://github.com/misfitxtm/Hypora/releases), or:
+**Download a release** — a fixed set of files that was tested as a unit. On alpha this is the one to pick if you want to be able to say *which* Hypora you are reporting a bug against. Grab the source tarball from the [releases page](https://github.com/mizfitxtm/Hypora/releases), or:
 
 ```bash
 mkdir -p ~/.local/share/hypora
-curl -fsSL https://github.com/misfitxtm/Hypora/archive/refs/tags/v0.1.0-alpha.tar.gz \
+curl -fsSL https://github.com/mizfitxtm/Hypora/archive/refs/tags/v0.1.0-alpha.tar.gz \
   | tar xz --strip-components=1 -C ~/.local/share/hypora
 cd ~/.local/share/hypora
 ./install.sh
@@ -59,7 +59,7 @@ cd ~/.local/share/hypora
 **Clone the repository** — tracks `main`, so you get fixes as they land, which during alpha is most days. Also what you want if you intend to read or change the code, since you keep the history:
 
 ```bash
-git clone https://github.com/misfitxtm/Hypora.git ~/.local/share/hypora
+git clone https://github.com/mizfitxtm/Hypora.git ~/.local/share/hypora
 cd ~/.local/share/hypora
 ./install.sh
 ```
@@ -267,7 +267,7 @@ Security and network limitations (DNS-over-TLS, MAC randomization, automatic upd
 
 ## Reporting bugs: what to include
 
-**Please file bugs and feature requests as [GitHub issues](https://github.com/misfitxtm/Hypora/issues).** That's the only place they're tracked, and the menu's **Help > Report a bug** opens the form directly.
+**Please file bugs and feature requests as [GitHub issues](https://github.com/mizfitxtm/Hypora/issues).** That's the only place they're tracked, and the menu's **Help > Report a bug** opens the form directly.
 
 What makes a report useful here:
 

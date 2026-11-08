@@ -49,7 +49,7 @@ Either way, the files go in `~/.local/share/hypora` and `./install.sh` does the 
 
 ```bash
 mkdir -p ~/.local/share/hypora
-curl -fsSL https://github.com/misfitxtm/Hypora/archive/refs/tags/v0.1.0-alpha.tar.gz \
+curl -fsSL https://github.com/mizfitxtm/Hypora/archive/refs/tags/v0.1.0-alpha.tar.gz \
   | tar xz --strip-components=1 -C ~/.local/share/hypora
 cd ~/.local/share/hypora
 ./install.sh
@@ -58,7 +58,7 @@ cd ~/.local/share/hypora
 **The repository**: tracks `main`, so you get fixes as they land.
 
 ```bash
-git clone https://github.com/misfitxtm/Hypora.git ~/.local/share/hypora
+git clone https://github.com/mizfitxtm/Hypora.git ~/.local/share/hypora
 cd ~/.local/share/hypora
 ./install.sh
 ```
@@ -120,7 +120,7 @@ More: [Known limitations](docs/reference.md#known-limitations).
 
 ## Reporting bugs
 
-File bugs and feature requests as [GitHub issues](https://github.com/misfitxtm/Hypora/issues); the menu's **Help > Report a bug** opens the form. A useful report says which Fedora version you run and whether it is bare metal or a VM, and includes `hyprctl configerrors` for compositor or keybind problems, the output of `qs` run from a terminal for shell problems, or `hypora-security status` for the Security window. The full checklist: [what to include](docs/reference.md#reporting-bugs-what-to-include).
+File bugs and feature requests as [GitHub issues](https://github.com/mizfitxtm/Hypora/issues); the menu's **Help > Report a bug** opens the form. A useful report says which Fedora version you run and whether it is bare metal or a VM, and includes `hyprctl configerrors` for compositor or keybind problems, the output of `qs` run from a terminal for shell problems, or `hypora-security status` for the Security window. The full checklist: [what to include](docs/reference.md#reporting-bugs-what-to-include).
 
 ## License
 

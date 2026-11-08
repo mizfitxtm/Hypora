@@ -141,6 +141,6 @@ arguments is the quickest way to confirm that.
 
 ## Contributing one back
 
-Open a [pull request](https://github.com/misfitxtm/Hypora/pulls) with the theme directory
+Open a [pull request](https://github.com/mizfitxtm/Hypora/pulls) with the theme directory
 and, please, wallpapers you have the right to redistribute — that is the part most likely to
 be a problem. `tools/check-theme.py` should pass before you send it.

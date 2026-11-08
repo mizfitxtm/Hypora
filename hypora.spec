@@ -3,7 +3,7 @@ Version:        0.1.0
 Release:        1%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
-URL:            https://github.com/misfitxtm/Hypora
+URL:            https://github.com/mizfitxtm/Hypora
 Source0:        %{name}-%{version}.tar.gz
 BuildArch:      noarch
 

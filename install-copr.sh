@@ -158,7 +158,7 @@ esac
 
 
 # Hypora's own COPR. HYPORA_COPR_FPR is the repo key's fingerprint, filled in once the COPR exists; empty skips the check.
-HYPORA_COPR=${HYPORA_COPR:-misfitxtm/hypora}
+HYPORA_COPR=${HYPORA_COPR:-mizfitxtm/hypora}
 HYPORA_COPR_FPR=
 log "Enabling COPR $HYPORA_COPR"
 dnf_run copr enable -y "$HYPORA_COPR"
