@@ -165,7 +165,7 @@ if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
 fi
 pkill -USR1 -x kitty 2>/dev/null || true # kitty reloads its config on SIGUSR1
 
-# The login colours file is root-owned, so update it only when sudo can be asked (terminal or install.sh).
+# The login colours file is root-owned, so update it only when sudo can be asked (terminal or hypora-setup).
 SDDM_CONF=/usr/share/sddm/themes/hypora/theme.conf
 # Copy hypora-greeter's `primary` line across, or a theme switch would show the login panel on every monitor.
 if [ -f "$SDDM_CONF" ] && [ -f "$OUT/sddm-theme.conf" ]; then

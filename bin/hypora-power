@@ -362,7 +362,7 @@ UNIT_DIR = Path("/etc/systemd/system")
 
 
 def cmd_is_laptop():
-    """Exit 0 on a laptop, 1 otherwise. install.sh uses this."""
+    """Exit 0 on a laptop, 1 otherwise. hypora-setup uses this."""
     laptop, why = is_laptop()
     print(f"{'laptop' if laptop else 'not a laptop'} ({why})")
     return 0 if laptop else 1

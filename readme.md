@@ -43,27 +43,23 @@ None of those three install choices is enforced, but skipping encryption or btrf
 
 ## Install
 
-Either way, the files go in `~/.local/share/hypora` and `./install.sh` does the rest.
-
-**A release**: a fixed set of files that was tested together, best if you want to say which Hypora you are reporting a bug against.
+`install.sh` enables the Hyprland and Hypora COPRs, installs the `hypora` package, adds the optional apps you pick (a browser, extras, Flatpaks), then runs `hypora-setup` to configure the machine and your account.
 
 ```bash
-mkdir -p ~/.local/share/hypora
-curl -fsSL https://github.com/mizfitxtm/Hypora/archive/refs/tags/v0.1.0-alpha.tar.gz \
-  | tar xz --strip-components=1 -C ~/.local/share/hypora
-cd ~/.local/share/hypora
+git clone https://github.com/mizfitxtm/Hypora.git
+cd Hypora
 ./install.sh
 ```
 
-**The repository**: tracks `main`, so you get fixes as they land.
+Without the optional apps, the package and setup alone are:
 
 ```bash
-git clone https://github.com/mizfitxtm/Hypora.git ~/.local/share/hypora
-cd ~/.local/share/hypora
-./install.sh
+sudo dnf copr enable mizfitxtm/hypora
+sudo dnf install hypora
+hypora-setup
 ```
 
-The installer is safe to re-run, and saves anything it replaces as `<name>.bak.<timestamp>`. Pick a theme with `THEME=TokyoNight ./install.sh`. What it does step by step, and how to update: [Installing in detail](docs/reference.md#installing-in-detail).
+Both are safe to re-run, and anything replaced is saved as `<name>.bak.<timestamp>`. Pick a theme with `THEME=TokyoNight hypora-setup`. What it does step by step, and how to update: [Installing in detail](docs/reference.md#installing-in-detail) and [COPR](docs/copr.md).
 
 Reboot when it finishes. SDDM shows the Hypora login screen and starts the **Hyprland (uwsm-managed)** session. No login screen? Start it from a text console with `uwsm start hyprland-uwsm.desktop`.
 

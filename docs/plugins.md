@@ -66,7 +66,7 @@ installer treats your edits too.
 | `~/.config/hypora/plugins.json` | the list the bar reads. Edited by `hypora-plugin`, not by hand |
 
 The Hypora installer never touches any of these: it only prunes files it recorded itself, so re-running
-`./install.sh` leaves plugins alone. `Bar.qml` has three `BarPlugins` slots, and that is the only hook —
+`hypora-setup` leaves plugins alone. `Bar.qml` has three `BarPlugins` slots, and that is the only hook —
 the bar reads `plugins.json` and loads the matching components, so enabling or removing a plugin shows up
 without restarting the shell.
 

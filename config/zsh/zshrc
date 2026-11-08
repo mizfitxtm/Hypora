@@ -5,9 +5,9 @@
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="robbyrussell"
 
-# Oh My Zsh is installed at a pinned commit (see install.sh). Its own updater would pull
+# Oh My Zsh is installed at a pinned commit (see hypora-setup). Its own updater would pull
 # the latest master and undo that pin, and this code runs in every interactive shell.
-# Update it on purpose: change the commit in install.sh and re-run it, or run `omz update`
+# Update it on purpose: change the commit in hypora-setup and re-run it, or run `omz update`
 # after reading what changed.
 zstyle ':omz:update' mode disabled
 DISABLE_AUTO_UPDATE=true

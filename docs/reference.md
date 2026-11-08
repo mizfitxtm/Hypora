@@ -44,51 +44,33 @@ Also needed:
 
 ## Installing in detail
 
-Two ways to get the files. Either works; the difference is only which revision you end up on.
+`install.sh` is the front door; `hypora-setup` does the configuring. Together they:
 
-**Download a release** — a fixed set of files that was tested as a unit. On alpha this is the one to pick if you want to be able to say *which* Hypora you are reporting a bug against. Grab the source tarball from the [releases page](https://github.com/mizfitxtm/Hypora/releases), or:
+1. Check you're on Fedora and not running as root, and report whether `/` is btrfs and encrypted
+2. Enable the `sdegler/hyprland` COPR (Fedora doesn't package Hyprland or uwsm) and Hypora's own COPR, each with its signing key checked against a recorded fingerprint, then install the `hypora` package, whose requirements bring in PipeWire with wiremix, BlueZ, zsh, Neovim, fastfetch and the rest
+3. Ask about a browser (Firefox, Chromium, Zen or Brave, as a Flatpak), the optional Flatpak apps and, only if you say yes (or set `INSTALL_EXTRAS=yes`), `@virtualization` and network tools (nmap, aircrack-ng, wireshark/tshark)
+4. Run `hypora-setup`, which:
+   - checks whether this is a laptop or a desktop (battery and backlight pieces install only on a laptop) and that Hyprland is 0.55+
+   - installs Oh My Zsh and the LazyVim starter, both pinned to a commit, and makes zsh your login shell (an existing `~/.config/nvim` is left alone)
+   - installs JetBrainsMono Nerd Font and the system font defaults
+   - enables NetworkManager, upower, bluetooth and power profiles; points DNS at systemd-resolved with DNS-over-TLS; randomizes MAC addresses; enables `firewalld` in the closed `public` zone; turns on automatic security updates for packages and flatpaks; sets up keyring auto-unlock; and sets the default boot target to graphical
+   - installs the theme palettes and templates into `~/.config/hypora/` and applies the chosen theme
+   - **copies** `config/hypr/hyprland.lua`, `config/quickshell/`, the GTK settings and the themes into `~/.config/`, and `applications/*.desktop` into `~/.local/share/applications/`
+   - installs the SDDM login theme, disables GDM/LightDM/greetd, enables SDDM, and installs the Plymouth boot theme — the slowest step, because it rebuilds the initramfs
+   - copies `bin/` into `~/.local/bin/`, except the root-owned helpers, which go to `/usr/local/bin`
+   - checks hardware, firmware and drivers (see [Hardware](hardware.md))
+   - on btrfs, sets up snapper, btrfs-assistant and btrfsmaintenance (see [Snapshots](storage.md#snapshots))
+5. Offer to remove another desktop if one is installed — session, leftovers and orphans, keeping what Hypora is built on — then **offer RPM Fusion**, Steam and **Claude Code**. All default to no
 
-```bash
-mkdir -p ~/.local/share/hypora
-curl -fsSL https://github.com/mizfitxtm/Hypora/archive/refs/tags/v0.1.0-alpha.tar.gz \
-  | tar xz --strip-components=1 -C ~/.local/share/hypora
-cd ~/.local/share/hypora
-./install.sh
-```
-
-**Clone the repository** — tracks `main`, so you get fixes as they land, which during alpha is most days. Also what you want if you intend to read or change the code, since you keep the history:
-
-```bash
-git clone https://github.com/mizfitxtm/Hypora.git ~/.local/share/hypora
-cd ~/.local/share/hypora
-./install.sh
-```
-
-Pick a theme with the `THEME` variable (it must exist under `themes/`). Re-runs keep the theme you last chose with `hypora-theme`:
+Both scripts are safe to re-run. Pick a theme with the `THEME` variable (it must exist under `themes/`); re-runs keep the theme you last chose with `hypora-theme`:
 
 ```bash
-THEME=TokyoNight ./install.sh
+THEME=TokyoNight hypora-setup
 ```
-
-The installer is safe to re-run. It:
-
-1. Checks you're on Fedora and not running as root, and whether this is a laptop or a desktop — the battery and backlight pieces only install on a laptop
-2. Enables the `sdegler/hyprland` COPR (Fedora doesn't package Hyprland or uwsm) and checks Hyprland is 0.55+
-3. Installs required packages, warning and continuing if an optional one is unavailable: PipeWire with wiremix, BlueZ, tuned-ppd, zsh, Neovim, fastfetch, and, only if you say yes when asked (or set `INSTALL_EXTRAS=yes`), `@virtualization` (libvirt, QEMU/KVM, virt-manager) and network tools (nmap, aircrack-ng, wireshark/tshark)
-4. Installs Oh My Zsh and the LazyVim starter, both pinned to a commit, and makes zsh your login shell (an existing `~/.config/nvim` is left alone)
-5. Installs JetBrainsMono Nerd Font and the system font defaults
-6. Enables NetworkManager, upower, bluetooth and power profiles; points DNS at systemd-resolved with DNS-over-TLS; randomizes MAC addresses; enables `firewalld` in the closed `public` zone; turns on automatic security updates for packages and flatpaks; sets up keyring auto-unlock; and sets the default boot target to graphical
-7. Installs the theme palettes and templates into `~/.config/hypora/` and applies the chosen theme
-8. **Copies** `config/hypr/hyprland.lua`, `config/quickshell/`, the GTK settings and the themes into `~/.config/`, and `applications/*.desktop` into `~/.local/share/applications/`
-9. Installs the SDDM login theme, disables GDM/LightDM/greetd, enables SDDM, and installs the Plymouth boot theme — the slowest step, because it rebuilds the initramfs
-10. Copies `bin/` into `~/.local/bin/`, except the root-owned helpers, which go to `/usr/local/bin`
-11. Checks hardware, firmware and drivers (see [Hardware](hardware.md))
-12. On btrfs, sets up snapper, btrfs-assistant and btrfsmaintenance (see [Snapshots](storage.md#snapshots))
-13. Offers to remove another desktop if one is installed — session, leftovers and orphans, keeping what Hypora is built on — then **offers RPM Fusion**, then **offers Claude Code**. All three default to no, and all three are at the end of the run so a declined answer costs nothing
 
 Anything it replaces that you had changed is saved as `<name>.bak.<timestamp>`.
 
-Configs are **copies**, so the directory you installed from can be moved or deleted afterwards. To update, `git pull` (or download a newer release over the same directory) and re-run `./install.sh`: it records a checksum of every file it installs, so files you haven't touched are updated quietly, files you edited are saved as `<name>.bak.<timestamp>` before being replaced, and files Hypora no longer ships are removed (unless you edited them). Quickshell live-reloads when you edit `~/.config/quickshell/*.qml`.
+Configs are **copies**, so the clone can be deleted after installing. To update, run `sudo dnf upgrade hypora` and then `hypora-setup`: it records a checksum of every file it installs, so files you haven't touched are updated quietly, files you edited are saved as `<name>.bak.<timestamp>` before being replaced, and files Hypora no longer ships are removed (unless you edited them). Quickshell live-reloads when you edit `~/.config/quickshell/*.qml`.
 
 ### Starting the desktop
 
@@ -207,7 +189,10 @@ Don't run another notification daemon (Mako, dunst, swaync) or polkit agent alon
 
 ```
 .
-├── install.sh              # main installer
+├── install.sh              # bootstrap: COPRs, the hypora package, optional apps, then hypora-setup
+├── hypora-setup            # configures the machine and your account from /usr/share/hypora
+├── lib.sh                  # helpers both scripts share
+├── hypora.spec             # the RPM (see copr.md)
 ├── config/                 # copied into ~/.config
 │   ├── hypr/               # hyprland.lua, hypridle.conf
 │   ├── quickshell/         # the shell: bar, menu, control center, settings windows,
@@ -246,7 +231,7 @@ Don't run another notification daemon (Mako, dunst, swaync) or polkit agent alon
 │   │                       # and the power units -> /etc/systemd/
 │   ├── NetworkManager/     # systemd-resolved and MAC randomization -> conf.d/
 │   ├── dnf/automatic.conf  # automatic security updates
-│   └── sddm/               # login screen theme and session, installed by install.sh
+│   └── sddm/               # login screen theme and session, installed by hypora-setup
 └── LICENSE
 ```
 

@@ -79,7 +79,7 @@ DESKTOPS = {
            ("i3-", "i3status", "i3lock"), ("i3", "i3status")),
 }
 
-# Never removed. Keep this in step with REQUIRED in install.sh.
+# Never removed. Keep this in step with the Requires in hypora.spec.
 KEEP = [
     "nautilus", "gvfs", "gnome-calculator", "gnome-disk-utility", "gnome-software",
     "adw-gtk3-theme", "gnome-keyring",

@@ -15,7 +15,7 @@ sudo hypora-power install  # apply them, and follow the charger from now on
 sudo hypora-power remove
 ```
 
-`install.sh` runs `install` automatically **on laptops only**, and `hypora-power install` refuses on anything else even if run by hand.
+`hypora-setup` runs `install` automatically **on laptops only**, and `hypora-power install` refuses on anything else even if run by hand.
 
 The installer decides laptop-or-desktop **once, at the start**, and every laptop-specific step reads that one answer — so they cannot disagree with each other. It prints which it chose and why. `IS_LAPTOP=yes` or `IS_LAPTOP=no` overrides it, for firmware that reports nonsense.
 

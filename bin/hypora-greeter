@@ -15,7 +15,7 @@ present. The file is owned by root: the greeter runs before anyone logs in, so t
 it is about to authenticate must not be able to change what it executes. The output name
 is also validated here, because it comes from a GUI running as your user.
 
-Installed to /usr/local/bin by install.sh and reached through pkexec, like the other
+Installed to /usr/local/bin by hypora-setup and reached through pkexec, like the other
 root-owned helpers.
 """
 import os
@@ -127,7 +127,7 @@ def set_theme_primary(name):
     """
     if not THEME_CONF.is_file():
         print(f"Note: {THEME_CONF} is missing, so the login screen will show on every "
-              f"monitor. Re-run install.sh to put the theme back.", file=sys.stderr)
+              f"monitor. Re-run hypora-setup to put the theme back.", file=sys.stderr)
         return
     text = THEME_CONF.read_text()
     line = "" if name is None else f'primary="{name}"'

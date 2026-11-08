@@ -234,8 +234,8 @@ class MiscTests(unittest.TestCase):
         self.assertEqual(len(hp.clean("x" * 500)), 200)
 
     def test_root_owned_list_matches_installer(self):
-        # install.sh and hypora-plugin each list the root-owned helpers and must agree, or a plugin could shadow one.
-        text = (ROOT / "install.sh").read_text()
+        # hypora-setup and hypora-plugin each list the root-owned helpers and must agree, or a plugin could shadow one.
+        text = (ROOT / "hypora-setup").read_text()
         body = text.split("ROOT_OWNED=(", 1)[1].split(")", 1)[0]
         self.assertEqual(set(body.split()), hp.ROOT_OWNED)
 

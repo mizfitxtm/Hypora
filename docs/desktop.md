@@ -23,7 +23,7 @@ Both degrade safely. If the named output is not connected — unplugged since it
 
 The pointer is placed on that screen too, by a small generated script the greeter's config runs: working out the centre of a monitor means reading `hyprctl`'s JSON, which is best done in a script rather than quoted through Lua and then through `sh`. It accounts for scaling, and does nothing at all if the output is missing or `hyprctl` is unavailable.
 
-The password prompt appears only when the main display actually changes — everything else in Display Settings applies without ever asking. Dismissing it costs the login screen's placement and nothing else, and the window says so. `install.sh` also re-applies whatever `monitors.lua` says on every run, so a dismissed prompt repairs itself next time you run the installer.
+The password prompt appears only when the main display actually changes — everything else in Display Settings applies without ever asking. Dismissing it costs the login screen's placement and nothing else, and the window says so. `hypora-setup` also re-applies whatever `monitors.lua` says on every run, so a dismissed prompt repairs itself next time you run the installer.
 
 ```
 hypora-greeter status            # what the greeter is currently told
@@ -56,7 +56,7 @@ The rules are applied from the `hyprland.start` hook rather than at the top leve
 
 ## Customizing
 
-- **Colors and font:** edit `themes/<Name>/colors.toml`, or copy a theme folder to `themes/<NewName>/`, re-run `./install.sh`, then `hypora-theme <NewName>`. To theme another app, add a template to `themes/templates/` and link its output in `bin/hypora-theme`
+- **Colors and font:** edit `themes/<Name>/colors.toml`, or copy a theme folder to `themes/<NewName>/`, re-run `hypora-setup`, then `hypora-theme <NewName>`. To theme another app, add a template to `themes/templates/` and link its output in `bin/hypora-theme`
 - **Terminal and TUIs launched by widgets:** `terminal`, `mixer`, `network` and `bluetooth` in `themes/templates/Theme.qml.tpl`
 - **Autostart, keybinds:** `config/hypr/hyprland.lua`
 - **Apps that should float instead of tile:** add the Wayland app ID to the `floatingApps` list near the window rules in `config/hypr/hyprland.lua` (Calculator is there already). `hyprctl clients` prints the ID as `class` for any window you have open
@@ -68,7 +68,7 @@ The rules are applied from the `hyprland.start` hook rather than at the top leve
 - **Security:** menu > Security; anything needing root asks through the polkit prompt
 - **Boot screen:** `themes/templates/plymouth.plymouth.tpl` for layout, `bin/hypora-plymouth` for the images (see [Boot screen](boot.md#boot-screen))
 - **Text console colours:** `sudo hypora-console apply` (see [Text console](boot.md#text-console))
-- **DNS resolver:** `system/systemd/resolved.conf.d/hypora-dns.conf`, then re-run `./install.sh` (see [DNS](network.md#dns))
+- **DNS resolver:** `system/systemd/resolved.conf.d/hypora-dns.conf`, then re-run `hypora-setup` (see [DNS](network.md#dns))
 - **MAC randomization:** `system/NetworkManager/conf.d/hypora-mac.conf`, or per network with `nmcli connection modify` (see [MAC addresses](network.md#mac-addresses))
 - **What updates on its own:** `system/dnf/automatic.conf` (see [Automatic updates](security.md#automatic-updates))
 - **Keybinds:** menu > Help > Keybindings, or the `keys` table at the top of the keybindings section in `config/hypr/hyprland.lua`

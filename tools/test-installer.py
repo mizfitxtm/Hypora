@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC = (ROOT / "install.sh").read_text()
+SRC = (ROOT / "install.sh").read_text() + (ROOT / "lib.sh").read_text()
 
 
 def func(name):
@@ -82,7 +82,7 @@ class DnfRunTests(unittest.TestCase):
 
 class SyntaxTests(unittest.TestCase):
     def test_scripts_parse(self):
-        for f in ("install.sh", "install-copr.sh", "hypora-setup", "lib.sh"):
+        for f in ("install.sh", "hypora-setup", "lib.sh"):
             r = subprocess.run(["bash", "-n", str(ROOT / f)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, f"{f}: {r.stderr}")
 

@@ -40,7 +40,7 @@ FINGERPRINT_VENDORS = {
     "27c6": "Goodix", "147e": "Upek", "08ff": "AuthenTec", "1c7a": "LighTuning",
 }
 
-# Vendors libfprint cannot drive, so install.sh can skip fprintd; a device fprintd reports still wins.
+# Vendors libfprint cannot drive, so hypora-setup can skip fprintd; a device fprintd reports still wins.
 UNSUPPORTED_FINGERPRINT_VENDORS = {
     "06cb": "Synaptics — no upstream libfprint driver exists for these",
 }
@@ -367,7 +367,7 @@ def fprintd_device_count():
 def cmd_fingerprint(hardware_only=False):
     """Report fingerprint support. Exit 0 only when enrolment would work.
 
-    install.sh uses the exit code to decide whether to install fprintd, and the app
+    hypora-setup uses the exit code to decide whether to install fprintd, and the app
     menu uses it to decide whether to offer "Set up fingerprint".
     """
     found = fingerprint_devices()
@@ -375,7 +375,7 @@ def cmd_fingerprint(hardware_only=False):
         name = d["product"] or d["vendorName"]
         print(f"{d['vendor']}:{d['device']}  {name}")
 
-    # --hardware asks if a reader exists without fprintd, which install.sh is still deciding to install.
+    # --hardware asks if a reader exists without fprintd, which hypora-setup is still deciding to install.
     if hardware_only:
         if not found:
             print("No fingerprint reader found.", file=sys.stderr)

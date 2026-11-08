@@ -15,7 +15,7 @@ sudo hypora-grub apply # install it and switch GRUB to graphics mode
 sudo hypora-grub remove
 ```
 
-`install.sh` applies it automatically when GRUB is present, and skips silently when it isn't — a machine booting via systemd-boot has nothing here to theme.
+`hypora-setup` applies it automatically when GRUB is present, and skips silently when it isn't — a machine booting via systemd-boot has nothing here to theme.
 
 Three things about GRUB make this more than dropping a file in place, and each one is a way to end up with a theme that appears broken rather than one that is:
 

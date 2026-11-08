@@ -24,7 +24,7 @@ DEST=/usr/share/plymouth/themes/hypora
 PLY_RE='^(#.*|\[[A-Za-z -]+\]|Name=Hypora|Description=[A-Za-z0-9 ,._-]*|ModuleName=two-step|ImageDir=/usr/share/plymouth/themes/hypora|(Font|TitleFont)=[A-Za-z0-9 ._+-]+|(BackgroundStartColor|BackgroundEndColor|ProgressBarBackgroundColor|ProgressBarForegroundColor)=0x[0-9a-fA-F]{6}|ProgressBar(Width|Height)=[0-9]+|[A-Za-z]+Alignment=[.0-9]+|Transition=none|TransitionDuration=[.0-9]+|(MessageBelowAnimation|DialogClearsFirmwareBackground|UseFirmwareBackground|UseEndAnimation|UseProgressBar|SuppressMessages|ProgressBarShowPercentComplete)=(true|false)|(Title|SubTitle)=[A-Za-z0-9 .,_-]+|)$'
 
 [ -d "$DEST" ] || {
-  echo "No boot screen theme installed yet; run ./install.sh first." >&2
+  echo "No boot screen theme installed yet; run hypora-setup first." >&2
   exit 1
 }
 

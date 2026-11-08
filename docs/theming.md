@@ -35,7 +35,7 @@ present, and `hypora-theme` warns rather than fails when one is missing, so the 
 of an omission is usually a blank row somewhere rather than an error.
 
 The theme picker (**SUPER + ALT + T**) finds it automatically — it lists whatever is in
-`~/.config/hypora/themes/`, which `install.sh` populates from this directory.
+`~/.config/hypora/themes/`, which `hypora-setup` populates from this directory.
 
 ## The 31 keys
 
