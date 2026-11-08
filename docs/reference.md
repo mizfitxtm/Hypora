@@ -14,7 +14,7 @@ The detail behind the [readme](../readme.md): what is incomplete, requirements, 
 > - **Battery** — on at least one ThinkPad the embedded controller's gauge reports 100% while discharging. This is a firmware reading, not Hypora's arithmetic, but the bar shows what it is given
 > - **Boot time** is longer than it should be and hasn't been profiled yet
 > - **Not yet run end to end:** `hypora-power install`. Fingerprint enrolment has been tried: on a ThinkPad whose Synaptics reader libfprint cannot drive, which is now detected and reported instead of offered `hypora-replace-de` has now been run on real hardware, which is how its missing cleanup phase and a silent keyring-auto-unlock breakage were found — both fixed
-> - **Packaging** — `packages/*.txt` and a modular `install/` directory are planned, not written
+> - **Packaging** — Hypora is now an RPM in the [`mizfitxtm/hypora` COPR](copr.md). Built for Fedora 43, 44, 45 and rawhide, but only **44** has been installed and tested; 43 and 45 are being tested, and rawhide is not supported yet. The new installer path has not yet been run from a clean install
 > - **Theming** — TokyoNight's `dim` colour sits at 2.76 contrast, just under the 3.0 floor the other themes meet
 >
 > Most development happened in a VM. It has since been installed and booted on bare metal, but hardware-specific pieces (GPU, battery, backlight) have had far less exercise than the rest. Please [file what you find](../readme.md#reporting-bugs).

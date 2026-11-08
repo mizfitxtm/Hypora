@@ -14,7 +14,7 @@ Hypora is installed with a single post-install script on top of a stock Fedora i
 
 The aim is an "install it and it just looks good" experience that doesn't take control away from you: a small, readable codebase of plain shell scripts and QML with no framework on top, one place to change colours, and AI tooling that is offered but never assumed.
 
-> **Alpha.** Most of it works and has run on real hardware, but some parts are unfinished and there are known bugs. See [what is incomplete](docs/reference.md#alpha-whats-incomplete), and please [report what you find](#reporting-bugs).
+> **Alpha.** Most of it works and has run on real hardware, but some parts are unfinished and there are known bugs. It now installs from a COPR package, a newer path than the rest. See [what is incomplete](docs/reference.md#alpha-whats-incomplete), and please [report what you find](#reporting-bugs).
 
 ## Screenshots
 
@@ -38,6 +38,8 @@ More in the [reference](docs/reference.md#screenshots).
 ## Requirements
 
 Built and tested on **Fedora 44**, installed from the **Everything netinstall** with **"Encrypt my data"** ticked and **btrfs** as the filesystem. You also need an internet connection and a user with `sudo`.
+
+Packages are also built for **Fedora 43** and **45** in the [COPR](docs/copr.md); those are still being tested, so expect rough edges there.
 
 None of those three install choices is enforced, but skipping encryption or btrfs can't be fixed later without reinstalling. Full details: [Requirements](docs/reference.md#requirements).
 
