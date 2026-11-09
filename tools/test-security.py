@@ -9,6 +9,7 @@ code rewrites /etc/fstab as root, where a mistake is a machine that does not boo
 import importlib.machinery
 import importlib.util
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -54,6 +55,7 @@ class SwapfileTests(unittest.TestCase):
     def setUp(self):
         self.hs = load("hypora-security")
         self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.fstab = self.tmp / "fstab"
         self.fstab.write_text("UUID=abc / btrfs defaults 0 0")   # no trailing newline
         self.swap = self.tmp / "swapfile"
