@@ -127,6 +127,10 @@ reboot = never
 
 **Flatpak apps** — including Firefox, where most of the day-to-day risk actually lives — are invisible to dnf, so `hypora-flatpak-update.timer` runs `flatpak update --system` daily at 07:00. Old runtimes aren't cleaned up automatically; `flatpak uninstall --unused` does that, or Warehouse.
 
+**Update notifications.** Because the security-only setting leaves out the Hyprland COPR and non-advisory fixes, Hypora adds a daily, read-only check: the user timer `hypora-update-check.timer` runs `hypora-update-check`, which counts the dnf packages with a newer version and sends one desktop notification (not repeated for the same count within a week) saying to run `sudo dnf upgrade`. It downloads and installs nothing, and it talks to the same mirrors dnf-automatic already does. Turn it off with `systemctl --user disable --now hypora-update-check.timer`; `hypora-setup` keeps it off on re-runs. Run `hypora-update-check` by hand to see the count.
+
+GNOME Software is installed, so *Restart & Update* (offline updates) and `dnf system-upgrade` still work, but its own background "updates available" popup runs only inside the GNOME session, which is why the timer above exists.
+
 Check both:
 
 ```bash

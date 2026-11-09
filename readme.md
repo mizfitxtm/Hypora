@@ -14,7 +14,7 @@ Hypora is installed with a single post-install script on top of a stock Fedora i
 
 The aim is an "install it and it just looks good" experience that doesn't take control away from you: a small, readable codebase of plain shell scripts and QML with no framework on top, one place to change colours, and AI tooling that is offered but never assumed.
 
-> **Alpha.** Most of it works and has run on real hardware, but some parts are unfinished and there are known bugs. It now installs from a COPR package, a newer path than the rest. See [what is incomplete](docs/reference.md#alpha-whats-incomplete), and please [report what you find](#reporting-bugs).
+> **Version 1.0.** Installed and tested on Fedora 44 and 45, on Workstation and the Everything netinstall. Known issues are listed in [Known issues](docs/reference.md#known-issues); please [report what you find](#reporting-bugs).
 
 ## Screenshots
 
@@ -41,7 +41,7 @@ Installed from the COPR and tested on **Fedora 44** and **Fedora 45**, each from
 
 On a **Workstation** install GNOME is still there when `hypora-setup` finishes. Removing the desktop you are logged in to would take the session down, so Hypora offers to remove it (and the settings it left in your home folder) the first time you log in to Hypora. Other spins (KDE, Xfce, COSMIC and so on) are untested: Hypora should install over them, but their login-manager settings and leftover files are not cleaned up the way GNOME's are.
 
-Packages are also built for **Rawhide**, Fedora's development branch that the next release is cut from. Rawhide changes daily and can break without warning; it is built so problems show up early, not because it is supported, so don't put it on a machine you rely on. Fedora 43 is end of life and not supported. Details: [Fedora releases](docs/copr.md#fedora-releases-and-rawhide).
+Packages are also built for **Rawhide**, Fedora's development branch that the next release is cut from. It is kept and expected to work, but it changes daily and is not one of the tested releases, so don't put it on a machine you rely on. Fedora 43 is end of life and not supported. Details: [Fedora releases](docs/copr.md#fedora-releases-and-rawhide).
 
 None of those three install choices is enforced, but skipping encryption or btrfs can't be fixed later without reinstalling. Full details: [Requirements](docs/reference.md#requirements).
 

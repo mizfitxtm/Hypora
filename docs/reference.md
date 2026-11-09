@@ -4,17 +4,15 @@ The detail behind the [readme](../readme.md): what is incomplete, requirements, 
 
 [← back to the readme](../readme.md)
 
-## Alpha: what's incomplete
+## Known issues
 
-> **Hypora is alpha software.** The majority of it works — the installer, the shell, the login screen, theming, and the Security, Display, Network, Bluetooth and Sound windows have all been exercised on real hardware. But **some sections are incomplete and there are known bugs**, and you should expect to hit them.
->
-> Known-incomplete and under investigation:
+> **Hypora 1.0 is meant to be used.** The installer, the shell, the login screen, theming, and the Security, Display, Network, Bluetooth and Sound windows have all been exercised on real hardware, and the install has been run from the COPR on Fedora 44 and 45. These issues are known and not yet fixed:
 >
 > - **Boot** — the GRUB framebuffer leftover (a black box after menu selection, and the menu reappearing after the splash) is still being chased; `fbcon=nodefer` is the current fix and is not yet confirmed on hardware
 > - **Battery** — on at least one ThinkPad the embedded controller's gauge reports 100% while discharging. This is a firmware reading, not Hypora's arithmetic, but the bar shows what it is given
 > - **Boot time** is longer than it should be and hasn't been profiled yet
 > - **Not yet run end to end:** `hypora-power install`. Fingerprint enrolment has been tried: on a ThinkPad whose Synaptics reader libfprint cannot drive, which is now detected and reported instead of offered `hypora-replace-de` has now been run on real hardware, which is how its missing cleanup phase and a silent keyring-auto-unlock breakage were found — both fixed
-> - **Packaging** — Hypora is now an RPM in the [`mizfitxtm/hypora` COPR](copr.md), built for Fedora 44, 45 and Rawhide (see [Fedora releases](copr.md#fedora-releases-and-rawhide)). Fedora 44 and 45 have each been installed and tested from the COPR on Workstation and the Everything netinstall. Rawhide, the development branch, is built as an early warning but not supported. Fedora 43 is not built: it is end of life and the Hyprland COPR does not support it
+> - **Fedora releases** — the [`mizfitxtm/hypora` COPR](copr.md) builds Fedora 44, 45 and Rawhide (see [Fedora releases](copr.md#fedora-releases-and-rawhide)). 44 and 45 have each been installed and tested on Workstation and the Everything netinstall. Rawhide is kept and expected to work but is not among the tested releases. Fedora 43 is not built: it is end of life and the Hyprland COPR does not support it
 > - **Theming** — TokyoNight's `dim` colour sits at 2.76 contrast, just under the 3.0 floor the other themes meet
 >
 > Most development happened in a VM. It has since been installed and booted on bare metal, but hardware-specific pieces (GPU, battery, backlight) have had far less exercise than the rest. Please [file what you find](../readme.md#reporting-bugs).
@@ -48,7 +46,7 @@ Also needed:
 
 1. Checks you're on Fedora and not running as root, that the COPR keys are the recorded ones, and whether `/` is btrfs and encrypted
 2. Asks about a browser (Firefox, Chromium, Zen or Brave, as a Flatpak; one that is already installed is kept), the optional Flatpak apps and, only if you say yes (or set `INSTALL_EXTRAS=yes`), `@virtualization` and network tools (nmap, aircrack-ng, wireshark/tshark)
-3. Removes `wofi` if it only came along as a recommendation of `hyprland` (Hypora has its own launcher; one you installed yourself stays), then checks whether this is a laptop or a desktop (battery and backlight pieces install only on a laptop) and that Hyprland is 0.55+
+3. Sets up a daily, read-only check that sends a desktop notification when dnf updates are waiting (a user timer, `hypora-update-check.timer`; turn it off with `systemctl --user disable --now hypora-update-check.timer`), removes `wofi` if it only came along as a recommendation of `hyprland` (Hypora has its own launcher; one you installed yourself stays), then checks whether this is a laptop or a desktop (battery and backlight pieces install only on a laptop) and that Hyprland is 0.55+
 4. Installs Oh My Zsh and the LazyVim starter, both pinned to a commit, and makes zsh your login shell (an existing `~/.config/nvim` is left alone)
 5. Installs JetBrainsMono Nerd Font and the system font defaults
 6. Enables NetworkManager, upower, bluetooth and power profiles; points DNS at systemd-resolved with DNS-over-TLS; randomizes MAC addresses; enables `firewalld` in the closed `public` zone; turns on automatic security updates for packages and flatpaks; sets up keyring auto-unlock; and sets the default boot target to graphical
@@ -235,7 +233,7 @@ Don't run another notification daemon (Mako, dunst, swaync) or polkit agent alon
 
 ## Known limitations
 
-See [Alpha](reference.md#alpha-whats-incomplete) above for what is incomplete or actively broken. Beyond that:
+See [Known issues](reference.md#known-issues) above for what is incomplete or actively broken. Beyond that:
 
 - The Hyprland Lua config format is new; if something misbehaves after a Hyprland update, check `hyprctl configerrors` and the Hyprland wiki
 - Hyprland comes from the third-party `sdegler/hyprland` COPR, so builds may lag behind or break after Fedora updates

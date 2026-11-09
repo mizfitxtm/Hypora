@@ -12,10 +12,27 @@ Users run three commands: `sudo dnf copr enable mizfitxtm/hypora`, `sudo dnf ins
 
 ## One-time COPR setup
 
-1. Create the project and add this repo as an SCM package: type `git`, spec `hypora.spec`, "make srpm" with `.copr/Makefile`, chroots for the Fedora releases you support (44, 45 and optionally rawhide; not 43, which is end of life and which the Hyprland COPR does not build for). Tick **Auto-rebuild** on the package and add the webhook from Settings → Integrations to the GitHub repo.
+1. Create the project and add this repo as an SCM package: type `git`, **committish `release`**, spec `hypora.spec`, "make srpm" with `.copr/Makefile`, chroots for the Fedora releases you support (44, 45 and rawhide; not 43, which is end of life and which the Hyprland COPR does not build for). Tick **Auto-rebuild** on the package and add the webhook from Settings → Integrations to the GitHub repo.
 2. **Settings → Runtime dependencies:** `copr://sdegler/hyprland`. This puts the Hyprland COPR in the repo file users get from `dnf copr enable`, so `dnf install hypora` finds `hyprland` and `uwsm` with no second command. Check it with `curl https://copr.fedorainfracloud.org/coprs/mizfitxtm/hypora/repo/fedora-44/mizfitxtm-hypora-fedora-44.repo`: it should list the sdegler repo too.
 3. The recorded fingerprints are in `lib.sh` (`HYPORA_COPR_FPR`, `HYPRLAND_COPR_FPR`) and in the readme. If the COPR project is deleted and recreated its key changes, so update both.
-4. Bump `Release` (or `Version`) and add a `%changelog` line in `hypora.spec` for every rebuild, or dnf will not see it as an update.
+4. Bump `Release` (or `Version`) and add a `%changelog` line in `hypora.spec` for every release, or dnf will not see it as an update.
+
+## Branches and releasing
+
+- **`dev`** is the working branch and GitHub's default. Pushing to it builds nothing.
+- **`release`** is what COPR builds. Each push to it publishes a package. A ruleset blocks deleting it and force-pushing to it.
+- Merging `dev` into `release` is a release, and a fast-forward takes **every** commit on `dev`, so keep `dev` shippable and do risky work on a feature branch.
+
+To release: bump `Version`/`Release` and the `%changelog` in `hypora.spec`, commit on `dev` and push, then
+
+```bash
+git checkout release
+git merge --ff-only dev
+git push origin release     # COPR builds from this push
+git checkout dev
+```
+
+Check the build in the COPR project (all chroots should succeed and show the new version), then `sudo dnf upgrade --refresh hypora` and `hypora-setup` on a machine. Optionally tag the release (`git tag -a vX.Y.Z -m ...`, `git push origin vX.Y.Z`) and publish it with `gh release create`. Docs-only commits can wait on `dev` for the next release.
 
 ## Fedora releases and Rawhide
 
@@ -27,7 +44,7 @@ The package builds for Fedora 44, 45 and Rawhide (x86_64). Fedora 44 and 45 have
 - A failed Rawhide build or a Rawhide bug report is often someone else's change, not a mistake in Hypora.
 - Its value is early warning: a Rawhide breakage shows up months before it reaches the next stable release.
 
-It is built but **not supported**. Drop the chroot if its failures cost more time than the warning is worth.
+It is kept and expected to work, but it is not one of the tested releases, so a Rawhide-only problem is not a release blocker. Drop the chroot if its failures cost more time than the warning is worth.
 
 ## Trust
 

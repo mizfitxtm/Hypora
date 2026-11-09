@@ -1,7 +1,6 @@
 Name:           hypora
-Version:        0.2.0
-# Pre-release: 0.1.alpha sorts before the final 0.2.0-1
-Release:        0.4.alpha%{?dist}
+Version:        1.0.0
+Release:        1%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
 URL:            https://github.com/mizfitxtm/Hypora
@@ -61,6 +60,7 @@ Requires:       pipewire-pulseaudio
 Requires:       wiremix
 Requires:       bluez
 Requires:       upower
+Requires:       libnotify
 Requires:       pcsc-lite
 Requires:       pcsc-lite-ccid
 Requires:       opensc
@@ -123,6 +123,11 @@ echo "Hypora is installed. Run hypora-setup as your normal user to finish."
 %{_bindir}/hypora-setup
 
 %changelog
+* Mon Nov 09 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.0.0-1
+- First stable release: tested on Fedora 44 and 45, Workstation and Everything
+- hypora-setup removes wofi when it only came along as a recommendation of hyprland
+- Daily update notification (hypora-update-check, a user timer)
+
 * Mon Nov 09 2026 mizfitxtm <noreply@users.noreply.github.com> - 0.2.0-0.4.alpha
 - hypora-setup removes wofi when it only came along as a recommendation of hyprland
 

@@ -17,6 +17,10 @@ def func(name):
     return re.search(rf"^{name}\(\) \{{.*?^\}}", SRC, re.S | re.M).group(0)
 
 
+def func_from_file(path, name):
+    return re.search(rf"^{name}\(\) \{{.*?^\}}", (ROOT / path).read_text(), re.S | re.M).group(0)
+
+
 def bash(script, stdin=None, env=None):
     return subprocess.run(["bash", "-c", script], input=stdin, capture_output=True, text=True,
                           env={"PATH": os.environ["PATH"], **(env or {})})
@@ -126,6 +130,47 @@ class DropWeakDepTests(unittest.TestCase):
 
     def test_does_nothing_when_not_installed(self):
         self.assertEqual(self.run_drop(installed=False), "")
+
+
+class UpdateCheckTests(unittest.TestCase):
+    """hypora-update-check with fake dnf and notify-send programs, in a throwaway HOME."""
+
+    def run_check(self, names, args=("--notify",), runs=1):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "bin").mkdir()
+            (d / "bin/dnf").write_text(f"#!/bin/sh\nprintf '%s\\n' {names}\n")
+            (d / "bin/notify-send").write_text(f"#!/bin/sh\necho \"$@\" >> {d}/notes\n")
+            for f in ("dnf", "notify-send"):
+                (d / "bin" / f).chmod(0o755)
+            env = {"HOME": str(d), "PATH": f"{d}/bin:/usr/bin:/bin"}
+            outs = [subprocess.run(["bash", str(ROOT / "bin/hypora-update-check"), *args],
+                                   env=env, capture_output=True, text=True).stdout for _ in range(runs)]
+            notes = (d / "notes").read_text().splitlines() if (d / "notes").exists() else []
+            return outs[-1], notes
+
+    def test_says_how_many_are_waiting_and_notifies(self):
+        out, notes = self.run_check("a b b c")
+        self.assertIn("3 update(s) waiting", out)
+        self.assertEqual(len(notes), 1)
+
+    def test_same_count_is_not_announced_twice(self):
+        self.assertEqual(len(self.run_check("a b", runs=2)[1]), 1)
+
+    def test_no_updates_is_quiet(self):
+        out, notes = self.run_check("")
+        self.assertIn("No updates waiting", out)
+        self.assertEqual(notes, [])
+
+    def test_without_the_flag_it_only_prints(self):
+        out, notes = self.run_check("a b", args=())
+        self.assertIn("2 update(s) waiting", out)
+        self.assertEqual(notes, [])
+
+    def test_a_changed_count_is_announced_again(self):
+        func_src = func_from_file("bin/hypora-update-check", "should_notify")
+        script = f"REMIND_AFTER=604800\n{func_src}\nshould_notify 5 3 1000 2000 && echo yes || echo no; should_notify 3 3 1000 2000 && echo yes || echo no; should_notify 3 3 1000 700000 && echo yes || echo no; should_notify 0 3 1000 700000 && echo yes || echo no"
+        self.assertEqual(bash(script).stdout.split(), ["yes", "no", "yes", "no"])
 
 
 class LoginThemeTests(unittest.TestCase):

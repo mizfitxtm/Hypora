@@ -818,6 +818,22 @@ if [ ${#bin_files[@]} -gt 0 ]; then
   done
 fi
 
+# Daily "updates are waiting" notification: a read-only user timer. A timer you turned off stays off on re-runs.
+# Turn off: systemctl --user disable --now hypora-update-check.timer
+log "Setting up the update notification timer"
+first_timer=0
+[ -f "$CONF/systemd/user/hypora-update-check.timer" ] || first_timer=1
+put "$REPO/config/systemd/user/hypora-update-check.service" "$CONF/systemd/user/hypora-update-check.service"
+put "$REPO/config/systemd/user/hypora-update-check.timer" "$CONF/systemd/user/hypora-update-check.timer"
+if systemctl --user daemon-reload 2>/dev/null; then
+  if [ "$first_timer" -eq 1 ]; then
+    systemctl --user enable --now hypora-update-check.timer >/dev/null 2>&1 ||
+      warn "Could not start the update notification timer; run: systemctl --user enable --now hypora-update-check.timer"
+  fi
+else
+  warn "No user session to start the update notification timer in; after logging in run: systemctl --user enable --now hypora-update-check.timer"
+fi
+
 # Smart cards and YubiKeys for the Flatpak browsers, which cannot see the host's OpenSC; runs after the Flatpak step.
 "$REPO/bin/hypora-smartcard" setup || warn "Smart card setup failed; run: hypora-smartcard setup"
 
