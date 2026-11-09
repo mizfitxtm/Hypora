@@ -886,7 +886,12 @@ if "$REPO/bin/hypora-replace-de" list >/dev/null 2>&1; then
     "Hypora can remove that desktop: its session, the packages it left lying around," \
     "and the orphaned libraries behind them. The applications and settings schemas" \
     "Hypora itself uses are kept — it is built on some of them and would break." >&2
-  if [ -t 0 ] && [ "${REPLACE_DE:-}" != no ]; then
+  if "$REPO/bin/hypora-replace-de" running >/dev/null 2>&1; then
+    # Removing the desktop you are logged in to takes the session down; hypora-first-login offers it inside Hypora.
+    mkdir -p "$CONF/hypora"
+    : >"$CONF/hypora/pending-replace-de"
+    log "That desktop is running now, so it cannot be removed yet; Hypora will offer to remove it the first time you log in"
+  elif [ -t 0 ] && [ "${REPLACE_DE:-}" != no ]; then
     read -r -p "Remove it now? [y/N] " answer
     case "$answer" in
     [Yy]*) sudo /usr/local/bin/hypora-replace-de remove ||
@@ -1043,6 +1048,18 @@ fi
 
 printf ' Set up from the hypora package %s.\n' "$(sed -n 's/^version=//p' "$STAMP")"
 printf ' Check later with: cat %s\n\n' "$STAMP"
+
+# Only when another desktop is still installed: the offer above was declined, or it cannot run while that desktop is running.
+if "$REPO/bin/hypora-replace-de" list >/dev/null 2>&1; then
+  cat <<'NOTE'
+ Another desktop is still installed. The first time you log in to Hypora it offers to
+ remove it and the settings it left in your home folder (they are moved to a backup, not
+ deleted). To do it yourself:
+
+   sudo hypora-replace-de remove
+
+NOTE
+fi
 
 cat <<'EOF'
  Reboot to finish. The Hypora login screen starts the Hyprland session.

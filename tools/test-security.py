@@ -160,5 +160,81 @@ class SelinuxBootTests(unittest.TestCase):
         self.assertEqual(self.set_boot("SELINUX=enforcing\n", "permissive"), ("SELINUX=permissive\n", False))
 
 
+class ReplaceDeConfigTests(unittest.TestCase):
+    """The GNOME settings cleanup moves files to a backup and leaves what Hypora uses."""
+
+    def setUp(self):
+        self.mod = load("hypora-replace-de")
+        self.mod.installed_names = lambda: set()
+        self.mod.is_running = lambda name: False
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name)
+        for rel in (".local/share/gnome-shell/extensions/x/metadata.json", ".config/gnome-session/saved-session/a",
+                    ".config/monitors.xml", ".config/gtk-3.0/settings.ini", ".config/goa-1.0/accounts.conf",
+                    ".config/mimeapps.list"):
+            f = self.home / rel
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text("data")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_config(self):
+        return self.mod.cmd_config(assume_yes=True, home=self.home, use_dconf=False)
+
+    def test_moves_gnome_files_to_a_backup(self):
+        self.assertEqual(self.run_config(), 0)
+        self.assertFalse((self.home / ".local/share/gnome-shell").exists())
+        self.assertFalse((self.home / ".config/monitors.xml").exists())
+        backups = list((self.home / ".local/share/hypora/removed-gnome-config").iterdir())
+        self.assertEqual(len(backups), 1)
+        self.assertTrue((backups[0] / ".local/share/gnome-shell/extensions/x/metadata.json").is_file())
+
+    def test_leaves_what_hypora_uses(self):
+        self.run_config()
+        for keep in (".config/gtk-3.0/settings.ini", ".config/goa-1.0/accounts.conf", ".config/mimeapps.list"):
+            self.assertTrue((self.home / keep).is_file(), keep)
+
+    def test_refuses_while_gnome_shell_is_installed(self):
+        self.mod.installed_names = lambda: {"gnome-shell"}
+        self.assertEqual(self.run_config(), 1)
+        self.assertTrue((self.home / ".config/monitors.xml").exists())
+
+    def test_nothing_to_do_is_quiet_success(self):
+        self.run_config()
+        self.assertEqual(self.run_config(), 0)
+
+
+class ReplaceDeRunningTests(unittest.TestCase):
+    """sudo clears XDG_CURRENT_DESKTOP, so "is it running" must also look at processes."""
+
+    def setUp(self):
+        self.mod = load("hypora-replace-de")
+
+    def with_procs(self, procs):
+        self.mod.run = lambda cmd, timeout=60: (0, "") if cmd[:2] == ["pgrep", "-x"] and cmd[2] in procs else (1, "")
+
+    def test_shell_process_counts_without_the_environment(self):
+        self.with_procs({"gnome-shell"})
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertTrue(self.mod.is_running("GNOME"))
+
+    def test_no_process_means_not_running(self):
+        self.with_procs(set())
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(self.mod.is_running("GNOME"))
+
+    def test_another_desktops_process_does_not_count(self):
+        self.with_procs({"plasmashell"})
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(self.mod.is_running("GNOME"))
+            self.assertTrue(self.mod.is_running("KDE Plasma"))
+
+    def test_environment_alone_still_counts(self):
+        self.with_procs(set())
+        with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}, clear=True):
+            self.assertTrue(self.mod.is_running("GNOME"))
+
+
 if __name__ == "__main__":
     unittest.main()

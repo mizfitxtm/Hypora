@@ -51,6 +51,8 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd(app("hypridle"))
 	-- Start the keyring (GNOME's session does it, Hyprland does not) so apps do not store tokens in the clear.
 	hl.exec_cmd("gnome-keyring-daemon --start --components=secrets,ssh")
+	-- Offers once to remove the old desktop when hypora-setup left a note (no-op otherwise).
+	hl.exec_cmd("hypora-first-login")
 	-- The monitors exist by now, which they don't when the config is first read
 	workspace_rules()
 	-- Start on the main display (HYPORA_PRIMARY from monitors.lua; nil keeps focus); hyprctl keeps Lua errors off login.

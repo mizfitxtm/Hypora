@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# hypora-first-login: at the start of a Hypora session, offer once to remove the desktop that was installed before it.
+# hypora-setup leaves ~/.config/hypora/pending-replace-de when it could not do that from inside the old desktop.
+set -euo pipefail
+
+flag="$HOME/.config/hypora/pending-replace-de"
+[ -f "$flag" ] || exit 0
+# Only inside Hyprland, never from the old desktop
+[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || exit 0
+
+# Already gone (removed by hand): nothing to offer
+if ! hypora-replace-de list >/dev/null 2>&1; then
+  rm -f "$flag"
+  exit 0
+fi
+
+# Let Quickshell and the keyring come up first
+sleep 8
+# The note is dropped before asking, so declining does not ask again at every login
+rm -f "$flag"
+exec kitty --title "Hypora: remove the old desktop" bash -c '
+  hypora-replace-de list
+  printf "\nHypora can remove that desktop and the settings it left in your home folder.\n"
+  printf "Nothing it uses is touched. Run later with: sudo hypora-replace-de remove\n\n"
+  read -r -p "Remove it now? [y/N] " answer
+  case "$answer" in
+  [Yy]*) sudo /usr/local/bin/hypora-replace-de remove ;;
+  esac
+  read -r -p "Press Enter to close" _
+'

@@ -6,14 +6,19 @@
     hypora-replace-de remove --yes
     hypora-replace-de remove --session-only   only the shell and session, no sweep
     hypora-replace-de remove --no-autoremove  skip the orphan sweep
+    hypora-replace-de remove --no-config      skip the settings cleanup in your home folder
     hypora-replace-de check           report leftovers and PAM damage, change nothing
+    hypora-replace-de config          move GNOME Shell's settings out of your home folder (run as you)
+    hypora-replace-de running         exit 0 if a desktop that could be removed is running now
 
-Removal runs in three phases:
+Removal runs in four phases:
 
   1. Session: the shell, session manager and greeter.
   2. Leftovers: other packages named after that desktop that nothing Hypora keeps
      still needs. Nothing depends on them, so removing the shell alone leaves them.
   3. Orphans: `dnf autoremove` for libraries that only served what just left.
+  4. Settings (GNOME only): the files and dconf keys that only GNOME Shell read, moved to a
+     backup folder in your home, never deleted. Runs as you, after the shell is gone.
 
 Phase 2 is safe because of the dependency closure, not the name. This script walks
 everything the keep list needs (with rpm) and never removes any of it. A name like
@@ -25,7 +30,9 @@ silently broke keyring unlock.
 
 The plan is always printed before anything is removed.
 """
+import datetime
 import os
+import pwd
 import re
 from pathlib import Path
 import shutil
@@ -299,13 +306,35 @@ def running_desktop():
             or os.environ.get("DESKTOP_SESSION") or "").lower()
 
 
+# Processes that mean a desktop is up. sudo clears XDG_CURRENT_DESKTOP, so the environment alone
+# said "not running" when removal was started from a GNOME terminal, and the session crashed.
+RUNNING = {
+    "gnome-shell": ("gnome-shell",),
+    "plasma-workspace": ("plasmashell", "kwin_wayland", "kwin_x11"),
+    "xfdesktop": ("xfdesktop", "xfwm4"),
+    "cinnamon": ("cinnamon",),
+    "mate-session-manager": ("mate-session", "mate-panel"),
+    "lxqt-session": ("lxqt-session",),
+    "budgie-desktop": ("budgie-wm",),
+    "cosmic-session": ("cosmic-session", "cosmic-comp"),
+    "sway": ("sway",),
+    "i3": ("i3",),
+}
+
+
 def is_running(name):
-    """True if we are inside the desktop we were asked to remove.
+    """True if the desktop we were asked to remove is running now.
 
     Removing a running shell would kill the terminal in the middle of the dnf run.
     """
     cur = running_desktop()
-    return bool(cur) and (name.lower().split()[0] in cur)
+    if cur and name.lower().split()[0] in cur:
+        return True
+    for marker, (display, *_rest) in DESKTOPS.items():
+        if display == name:
+            return any(run(["pgrep", "-x", proc], timeout=10)[0] == 0
+                       for proc in RUNNING.get(marker, ()))
+    return False
 
 
 def detected(present=None, protected=None):
@@ -364,6 +393,134 @@ def report_pam():
     return False
 
 
+# What only GNOME Shell and its session read in your home folder. The GTK, keyring, mimeapps and
+# Nautilus settings Hypora uses are not listed, and online accounts (goa-1.0) are your own data.
+GNOME_USER_PATHS = [
+    ".local/share/gnome-shell", ".config/gnome-shell", ".config/gnome-session",
+    ".config/gnome-initial-setup-done", ".config/monitors.xml", ".cache/gnome-shell",
+]
+# The same, in dconf. Hypora reads only desktop/interface (it writes the GTK theme there) and
+# desktop/privacy (the Security window), so those and the rest of org/gnome/desktop stay.
+GNOME_DCONF = ["/org/gnome/shell/", "/org/gnome/mutter/", "/org/gnome/desktop/wm/",
+               "/org/gnome/settings-daemon/", "/org/gnome/gnome-session/",
+               "/org/gnome/control-center/", "/org/gnome/login-screen/",
+               "/org/gnome/desktop/notifications/", "/org/gnome/desktop/session/",
+               "/org/gnome/desktop/search-providers/", "/org/gnome/desktop/app-folders/",
+               "/org/gnome/desktop/screensaver/"]
+
+
+def gnome_config(home):
+    """Paths under `home` that only GNOME Shell used."""
+    return [home / p for p in GNOME_USER_PATHS
+            if (home / p).exists() or (home / p).is_symlink()]
+
+
+def dconf_env():
+    env = dict(os.environ)
+    env.setdefault("DBUS_SESSION_BUS_ADDRESS", f"unix:path=/run/user/{os.getuid()}/bus")
+    return env
+
+
+def dconf_run(args):
+    """Run dconf as this user; returns (returncode, stdout). Missing dconf counts as failure."""
+    if not shutil.which("dconf"):
+        return 1, ""
+    try:
+        p = subprocess.run(["dconf"] + args, capture_output=True, text=True,
+                           timeout=30, env=dconf_env())
+    except (OSError, subprocess.SubprocessError):
+        return 1, ""
+    return p.returncode, p.stdout
+
+
+def gnome_dconf():
+    """GNOME dconf paths that hold anything."""
+    return [d for d in GNOME_DCONF
+            if (lambda r: r[0] == 0 and r[1].strip())(dconf_run(["list", d]))]
+
+
+def user_home():
+    """Home of the person at the keyboard: the sudo caller when run as root, else this user."""
+    if os.geteuid() != 0:
+        return Path.home()
+    name = os.environ.get("SUDO_USER")
+    if name and name != "root":
+        try:
+            return Path(pwd.getpwnam(name).pw_dir)
+        except KeyError:
+            pass
+    return None
+
+
+def cmd_config(assume_yes=False, home=None, use_dconf=True):
+    """Move GNOME Shell's leftover settings out of the home folder, keeping a backup."""
+    if home is None:
+        if os.geteuid() == 0:
+            sys.exit("Run this as your own user, not root:\n    hypora-replace-de config")
+        home = Path.home()
+    if "gnome-shell" in installed_names():
+        print("GNOME Shell is still installed, so those settings are in use. Remove it first:\n"
+              "    sudo hypora-replace-de remove", file=sys.stderr)
+        return 1
+    if is_running("GNOME"):
+        print("You are running GNOME right now. Reboot into Hypora and run this again.",
+              file=sys.stderr)
+        return 1
+
+    files = gnome_config(home)
+    keys = gnome_dconf() if use_dconf else []
+    if not files and not keys:
+        print("No GNOME Shell settings are left in your home folder.")
+        return 0
+
+    dest = (home / ".local/share/hypora/removed-gnome-config"
+            / datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    print("\nGNOME Shell settings left behind:")
+    for f in files:
+        print(f"  {f}")
+    for k in keys:
+        print(f"  dconf {k}")
+    print(f"\nThey are moved to {dest}, not deleted. Settings Hypora uses (GTK theme, keyring,\n"
+          "default apps, online accounts, Nautilus) are not touched.")
+    if not confirm("Move them?", assume_yes):
+        print("Left them alone.")
+        return 0
+
+    for f in files:
+        target = dest / f.relative_to(home)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(f), str(target))
+    for k in keys:
+        rc, dump = dconf_run(["dump", k])
+        if rc != 0 or not dump.strip():
+            print(f"Could not back up dconf {k}; left it alone.", file=sys.stderr)
+            continue
+        out = dest / "dconf" / (k.strip("/").replace("/", "_") + ".ini")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(dump)
+        if dconf_run(["reset", "-f", k])[0] != 0:
+            print(f"Backed up dconf {k} but could not reset it.", file=sys.stderr)
+    print(f"Done. To undo: move the files back from {dest}"
+          + (f", and run `dconf load <path> < {dest}/dconf/<file>.ini` for each dconf backup."
+             if keys else "."))
+    return 0
+
+
+def offer_config(assume_yes):
+    """After the packages are gone: run `config` as the person who ran sudo."""
+    home = user_home()
+    if not home or os.geteuid() != 0 or "gnome-shell" in installed_names():
+        return
+    if not gnome_config(home):
+        return
+    name = os.environ["SUDO_USER"]
+    print("\n=== GNOME settings in your home folder ===")
+    env = dict(os.environ, HOME=str(home),
+               DBUS_SESSION_BUS_ADDRESS=f"unix:path=/run/user/{pwd.getpwnam(name).pw_uid}/bus")
+    subprocess.run(["runuser", "-u", name, "--", sys.executable, os.path.abspath(sys.argv[0]),
+                    "config"] + (["--yes"] if assume_yes else []), env=env)
+
+
 def cmd_check():
     present = installed_names()
     protected = requires_closure(KEEP, present)
@@ -382,7 +539,16 @@ def cmd_check():
     print(f"\nOrphaned packages `dnf autoremove` would take: "
           f"{'none' if 'Nothing to do' in out else 'some — run remove to see the plan'}")
     ok = report_pam()
+    home = user_home()
+    left = gnome_config(home) if home and "gnome-shell" not in installed_names() else []
+    if left:
+        print(f"\nGNOME Shell settings still in {home}: {len(left)} path(s). "
+              "Clear them with: hypora-replace-de config")
     return 0 if ok else 1
+
+
+def cmd_running():
+    return 0 if any(is_running(name) for name, *_ in detected()) else 1
 
 
 def cmd_list():
@@ -453,7 +619,7 @@ def do_remove(label, pkgs, marker, assume_yes):
     return True
 
 
-def cmd_remove(assume_yes=False, session_only=False, do_autoremove=True):
+def cmd_remove(assume_yes=False, session_only=False, do_autoremove=True, do_config=True):
     if os.geteuid() != 0:
         sys.exit("This removes packages, so it needs root:\n    sudo hypora-replace-de remove")
 
@@ -461,6 +627,8 @@ def cmd_remove(assume_yes=False, session_only=False, do_autoremove=True):
     found = detected(present)
     if not found:
         print("No other desktop environment or window manager is installed.")
+        if do_config:
+            offer_config(assume_yes)
         return 0
 
     # Only check packages that were installed before; a never-installed one is not "missing"
@@ -529,6 +697,8 @@ def cmd_remove(assume_yes=False, session_only=False, do_autoremove=True):
         print("\nChecked: the schemas and apps Hypora depends on are still installed.")
     if not report_pam():
         ok = False
+    if do_config:
+        offer_config(assume_yes)
     return 0 if ok else 1
 
 
@@ -546,7 +716,12 @@ def main(argv):
             restore_stale_protection()
         return cmd_remove(assume_yes="--yes" in argv or "-y" in argv,
                           session_only="--session-only" in argv,
-                          do_autoremove="--no-autoremove" not in argv)
+                          do_autoremove="--no-autoremove" not in argv,
+                          do_config="--no-config" not in argv)
+    if cmd == "running":
+        return cmd_running()
+    if cmd == "config":
+        return cmd_config(assume_yes="--yes" in argv or "-y" in argv)
     print(__doc__, file=sys.stderr)
     return 2
 

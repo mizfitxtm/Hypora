@@ -1,7 +1,7 @@
 Name:           hypora
 Version:        0.2.0
 # Pre-release: 0.1.alpha sorts before the final 0.2.0-1
-Release:        0.1.alpha%{?dist}
+Release:        0.2.alpha%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
 URL:            https://github.com/mizfitxtm/Hypora
@@ -123,6 +123,9 @@ echo "Hypora is installed. Run hypora-setup as your normal user to finish."
 %{_bindir}/hypora-setup
 
 %changelog
+* Sun Nov 08 2026 mizfitxtm <noreply@users.noreply.github.com> - 0.2.0-0.2.alpha
+- hypora-replace-de no longer removes a desktop that is running (the check works under sudo); new hypora-first-login offers the removal once inside Hypora; new hypora-replace-de config moves GNOME Shell settings to a backup
+
 * Sun Nov 08 2026 mizfitxtm <noreply@users.noreply.github.com> - 0.2.0-0.1.alpha
 - First tagged release: installs from the COPR with three commands; hypora-setup asks about and installs the browser, apps and extras; install.sh is optional
 

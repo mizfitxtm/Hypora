@@ -78,23 +78,27 @@ The rules are applied from the `hyprland.start` hook rather than at the top leve
 
 ## Replacing another desktop
 
-If another desktop environment or window manager is installed, the installer names it and offers to remove it — last, after everything else has succeeded, and only if one is actually there.
+If another desktop environment or window manager is installed, `hypora-setup` names it and, when that desktop is not the one you are logged in to, offers to remove it — last, after everything else has succeeded.
+
+**Removing the desktop you are logged in to takes the session down**, so `hypora-setup` never does that. It leaves a note instead, and the first time you log in to Hypora a terminal opens (`hypora-first-login`, started from `hyprland.lua`) and offers the removal once. Declining does not ask again at the next login; run `sudo hypora-replace-de remove` whenever you like. The "is it running" check looks at the desktop's processes as well as `XDG_CURRENT_DESKTOP`, because `sudo` clears that variable and an environment-only check let a removal started from a GNOME terminal go ahead and crash the session.
 
 ```
 hypora-replace-de list              # what is installed, and what removing it would take
 hypora-replace-de check             # leftovers and PAM damage, changes nothing
 sudo hypora-replace-de remove       # asks first, and shows the full plan
+hypora-replace-de config            # as you: move GNOME Shell's leftover settings to a backup
 ```
 
 Recognises GNOME, KDE Plasma, Xfce, Cinnamon, MATE, LXQt, Budgie, COSMIC, Sway and i3.
 
-Removal runs in **three phases**, because the first alone leaves most of the desktop on disk:
+Removal runs in **four phases** (the fourth is GNOME only), because the first alone leaves most of the desktop on disk:
 
 | Phase | What goes | Why it is separate |
 |---|---|---|
 | 1. Session | The shell, session manager, greeter | The pieces that make it a desktop rather than a pile of apps |
 | 2. Leftovers | Every remaining package belonging to that desktop that nothing Hypora keeps still needs | Removing `gnome-shell` leaves `gnome-weather`, `gnome-logs`, `gnome-settings-daemon` and two dozen more, because nothing ever depended on them |
 | 3. Orphans | `dnf autoremove` | The libraries that only existed to serve what just left — `gjs`, `mozjs`, `webkit` and so on |
+| 4. Settings (GNOME only) | The files and dconf keys in your home folder that only GNOME Shell read, such as `~/.local/share/gnome-shell`, `~/.config/gnome-session`, `~/.config/monitors.xml` and the shell's dconf paths (`org/gnome/shell`, `mutter`, `desktop/wm`, `desktop/notifications`, `desktop/session`, `desktop/screensaver`, `login-screen` and a few more; `desktop/interface` and `desktop/privacy` are kept because Hypora uses them) | They belong to you, not to a package, so they are handled separately: `remove` hands them to `hypora-replace-de config`, which runs **as you**, asks first, and moves them to `~/.local/share/hypora/removed-gnome-config/<time>/` instead of deleting them |
 
 On a real Fedora Workstation machine the three phases together removed **47 packages and freed 251 MiB** that phase 1 alone left behind. Use `--session-only` for the old narrow behaviour, or `--no-autoremove` to skip phase 3.
 
@@ -103,7 +107,7 @@ On a real Fedora Workstation machine the three phases together removed **47 pack
 - `gsettings-desktop-schemas` provides `org.gnome.desktop.interface`, which `bin/hypora-theme` writes, and `org.gnome.desktop.privacy`, which the Security window reads. Lose it and theming stops working and two rows of that window go blank.
 - `nautilus`, `gnome-calculator`, `gnome-disk-utility`, `gnome-software` and `adw-gtk3-theme` are core apps that Hypora installs deliberately (`INSTALL_APPS=no` skips only the extra flatpaks).
 
-So "remove GNOME" here means the session and its leftovers, not the component layer underneath.
+So "remove GNOME" here means the session, its leftovers and its own settings, not the component layer underneath. Phase 4 never touches the GTK theme, the keyring, your default apps, online accounts or Nautilus settings. If you removed GNOME's packages earlier, run `hypora-replace-de config` on its own to clear what is left. To undo it, move the files back from the backup folder and `dconf load` the saved `.ini` files.
 
 ### What makes phase 2 safe is the closure, not the name
 
