@@ -39,7 +39,7 @@ More in the [reference](docs/reference.md#screenshots).
 
 Built and tested on **Fedora 44**, installed from the **Everything netinstall** with **"Encrypt my data"** ticked and **btrfs** as the filesystem. You also need an internet connection and a user with `sudo`.
 
-Packages are also built for **Fedora 43** and **45** in the [COPR](docs/copr.md); those are still being tested, so expect rough edges there.
+Packages are also built for **Fedora 45** (now released) and for **Rawhide**, Fedora's development branch that the next release is cut from. 45 is still being tested, so expect rough edges there. Rawhide changes daily and can break without warning; it is built so problems show up early, not because it is supported, so don't put it on a machine you rely on. Fedora 43 is end of life and not supported. Details: [Fedora releases](docs/copr.md#fedora-releases-and-rawhide).
 
 None of those three install choices is enforced, but skipping encryption or btrfs can't be fixed later without reinstalling. Full details: [Requirements](docs/reference.md#requirements).
 

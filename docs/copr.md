@@ -12,10 +12,22 @@ Users run three commands: `sudo dnf copr enable mizfitxtm/hypora`, `sudo dnf ins
 
 ## One-time COPR setup
 
-1. Create the project and add this repo as an SCM package: type `git`, spec `hypora.spec`, "make srpm" with `.copr/Makefile`, chroots for the Fedora releases you support. Tick **Auto-rebuild** on the package and add the webhook from Settings → Integrations to the GitHub repo.
+1. Create the project and add this repo as an SCM package: type `git`, spec `hypora.spec`, "make srpm" with `.copr/Makefile`, chroots for the Fedora releases you support (44, 45 and optionally rawhide; not 43, which is end of life and which the Hyprland COPR does not build for). Tick **Auto-rebuild** on the package and add the webhook from Settings → Integrations to the GitHub repo.
 2. **Settings → Runtime dependencies:** `copr://sdegler/hyprland`. This puts the Hyprland COPR in the repo file users get from `dnf copr enable`, so `dnf install hypora` finds `hyprland` and `uwsm` with no second command. Check it with `curl https://copr.fedorainfracloud.org/coprs/mizfitxtm/hypora/repo/fedora-44/mizfitxtm-hypora-fedora-44.repo`: it should list the sdegler repo too.
 3. The recorded fingerprints are in `lib.sh` (`HYPORA_COPR_FPR`, `HYPRLAND_COPR_FPR`) and in the readme. If the COPR project is deleted and recreated its key changes, so update both.
 4. Bump `Release` (or `Version`) and add a `%changelog` line in `hypora.spec` for every rebuild, or dnf will not see it as an update.
+
+## Fedora releases and Rawhide
+
+The package builds for Fedora 44, 45 and Rawhide (x86_64). Only 44 has been installed and tested; 45 is out and being tested. Fedora 43 is not built: it is end of life, and the Hyprland COPR does not build for it.
+
+**Rawhide** is Fedora's development branch. Every numbered release is cut from it, and it keeps moving afterwards: newest kernel, libraries and desktop packages first. Fedora itself warns it can break, with packages that will not install for a day or two or builds that fail when a library changes. For Hypora that means:
+
+- The `hypora` package is only files, so it builds there. A Rawhide machine gets Hyprland from the Hyprland COPR's Rawhide build, and anything depending on a library or a Quickshell version can break when Rawhide shifts.
+- A failed Rawhide build or a Rawhide bug report is often someone else's change, not a mistake in Hypora.
+- Its value is early warning: a Rawhide breakage shows up months before it reaches the next stable release.
+
+It is built but **not supported**. Drop the chroot if its failures cost more time than the warning is worth.
 
 ## Trust
 
