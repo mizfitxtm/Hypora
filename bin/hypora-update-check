@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# hypora-update-check [--notify]: count the dnf updates waiting; with --notify, also say so on the desktop.
+# Run daily by the user timer hypora-update-check.timer. It only reads: nothing is downloaded or installed.
+set -euo pipefail
+
+state="${XDG_STATE_HOME:-$HOME/.local/state}/hypora/update-check"
+# The same count is not announced again for a week
+REMIND_AFTER=$((7 * 86400))
+
+# should_notify COUNT LAST_COUNT LAST_EPOCH NOW: yes when something is waiting and it is new or a week old
+should_notify() {
+  [ "$1" -gt 0 ] || return 1
+  [ "$1" -ne "$2" ] || [ $(($4 - $3)) -ge "$REMIND_AFTER" ]
+}
+
+# Package names with a newer version in the enabled repositories. Failing (offline, repo down) is not news.
+names=$(dnf repoquery --upgrades --refresh -q --qf '%{name}\n' </dev/null 2>/dev/null) || exit 0
+count=$(printf '%s\n' "$names" | sort -u | grep -c . || true)
+
+if [ "$count" -eq 0 ]; then
+  echo "No updates waiting."
+  rm -f "$state"
+  exit 0
+fi
+echo "$count update(s) waiting. Install them with: sudo dnf upgrade"
+
+[ "${1:-}" = "--notify" ] || exit 0
+last_count=0 last_epoch=0
+[ -f "$state" ] && read -r last_count last_epoch <"$state" || true
+now=$(date +%s)
+if should_notify "$count" "${last_count:-0}" "${last_epoch:-0}" "$now"; then
+  notify-send --app-name=Hypora --icon=software-update-available \
+    "$count update(s) waiting" "Install them with: sudo dnf upgrade" || exit 0
+  mkdir -p "$(dirname "$state")"
+  echo "$count $now" >"$state"
+fi

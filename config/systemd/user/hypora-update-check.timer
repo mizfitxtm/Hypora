@@ -1,0 +1,11 @@
+# Daily, with jitter so mirrors are not hit at one second; catches up after a machine was off.
+[Unit]
+Description=Daily check for waiting dnf updates
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

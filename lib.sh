@@ -142,3 +142,16 @@ free_dnf_lock() {
     fi
   done
 }
+
+# drop_weak_dep PKG: remove PKG if it only came along as a recommendation and nothing requires it; one you installed yourself stays.
+drop_weak_dep() {
+  local pkg=$1 reason
+  rpm -q "$pkg" >/dev/null 2>&1 || return 0
+  reason=$(dnf repoquery --installed --qf '%{reason}\n' "$pkg" 2>/dev/null </dev/null | head -1 | tr 'A-Z' 'a-z')
+  case "$reason" in *weak*) ;; *) return 0 ;; esac
+  # rpm exits 0 when some package requires it
+  ! rpm -q --whatrequires "$pkg" >/dev/null 2>&1 || return 0
+  log "Removing $pkg: it only came along as a recommendation and Hypora does not use it"
+  # No orphan sweep: a package that served only this one is harmless, an over-eager sweep is not
+  dnf_run remove -y --setopt=clean_requirements_on_remove=False "$pkg" || warn "Could not remove $pkg"
+}

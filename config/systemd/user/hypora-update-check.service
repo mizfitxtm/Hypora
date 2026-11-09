@@ -1,0 +1,7 @@
+# Says on the desktop when dnf updates are waiting; read-only. Run by the timer.
+[Unit]
+Description=Check for waiting dnf updates
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/hypora-update-check --notify

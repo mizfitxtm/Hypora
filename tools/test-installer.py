@@ -103,6 +103,31 @@ class CoprKeyTests(unittest.TestCase):
         self.assertEqual(self.check("'deadbeef gpg(someone_else (None))'", self.GOOD), "rc=0")
 
 
+class DropWeakDepTests(unittest.TestCase):
+    def run_drop(self, installed=True, reason="Weak Dependency", required=False):
+        # rpm and dnf are stubbed: rpm -q PKG, rpm -q --whatrequires PKG (exit 0 = something requires it)
+        script = (
+            f"rpm() {{ case \"$*\" in '-q wofi') return {0 if installed else 1};; '-q --whatrequires wofi') return {0 if required else 1};; esac; }}\n"
+            f"dnf() {{ echo '{reason}'; }}\nlog() {{ :; }}\nwarn() {{ :; }}\n"
+            f"dnf_run() {{ echo \"REMOVED $*\"; }}\n{func('drop_weak_dep')}\ndrop_weak_dep wofi")
+        return bash(script).stdout
+
+    def test_removes_a_weak_dependency_nothing_requires(self):
+        self.assertIn("REMOVED remove -y --setopt=clean_requirements_on_remove=False wofi", self.run_drop())
+
+    def test_keeps_a_package_you_installed(self):
+        self.assertEqual(self.run_drop(reason="User"), "")
+
+    def test_keeps_a_hard_dependency(self):
+        self.assertEqual(self.run_drop(reason="Dependency"), "")
+
+    def test_keeps_it_when_something_requires_it(self):
+        self.assertEqual(self.run_drop(required=True), "")
+
+    def test_does_nothing_when_not_installed(self):
+        self.assertEqual(self.run_drop(installed=False), "")
+
+
 class LoginThemeTests(unittest.TestCase):
     def test_session_lookup_does_not_use_display_role(self):
         # SDDM's SessionModel has no DisplayRole: it returned "" for every row, so the first session

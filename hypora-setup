@@ -427,6 +427,9 @@ if rpm -q rustdesk >/dev/null 2>&1; then
   sudo dnf remove -y rustdesk || warn "Could not remove the RustDesk RPM"
 fi
 
+# hyprland recommends wofi, but Hypora has its own launcher (Quickshell); it goes only if nobody asked for it.
+drop_weak_dep wofi
+
 # GNOME Help documents a shell that is not running; hypora-replace-de removes it only while a desktop is detected.
 if rpm -q yelp >/dev/null 2>&1; then
   log "Removing GNOME Help (yelp)"

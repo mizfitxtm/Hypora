@@ -48,7 +48,7 @@ Also needed:
 
 1. Checks you're on Fedora and not running as root, that the COPR keys are the recorded ones, and whether `/` is btrfs and encrypted
 2. Asks about a browser (Firefox, Chromium, Zen or Brave, as a Flatpak; one that is already installed is kept), the optional Flatpak apps and, only if you say yes (or set `INSTALL_EXTRAS=yes`), `@virtualization` and network tools (nmap, aircrack-ng, wireshark/tshark)
-3. Checks whether this is a laptop or a desktop (battery and backlight pieces install only on a laptop) and that Hyprland is 0.55+
+3. Removes `wofi` if it only came along as a recommendation of `hyprland` (Hypora has its own launcher; one you installed yourself stays), then checks whether this is a laptop or a desktop (battery and backlight pieces install only on a laptop) and that Hyprland is 0.55+
 4. Installs Oh My Zsh and the LazyVim starter, both pinned to a commit, and makes zsh your login shell (an existing `~/.config/nvim` is left alone)
 5. Installs JetBrainsMono Nerd Font and the system font defaults
 6. Enables NetworkManager, upower, bluetooth and power profiles; points DNS at systemd-resolved with DNS-over-TLS; randomizes MAC addresses; enables `firewalld` in the closed `public` zone; turns on automatic security updates for packages and flatpaks; sets up keyring auto-unlock; and sets the default boot target to graphical
