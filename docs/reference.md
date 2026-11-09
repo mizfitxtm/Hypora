@@ -14,7 +14,7 @@ The detail behind the [readme](../readme.md): what is incomplete, requirements, 
 > - **Battery** — on at least one ThinkPad the embedded controller's gauge reports 100% while discharging. This is a firmware reading, not Hypora's arithmetic, but the bar shows what it is given
 > - **Boot time** is longer than it should be and hasn't been profiled yet
 > - **Not yet run end to end:** `hypora-power install`. Fingerprint enrolment has been tried: on a ThinkPad whose Synaptics reader libfprint cannot drive, which is now detected and reported instead of offered `hypora-replace-de` has now been run on real hardware, which is how its missing cleanup phase and a silent keyring-auto-unlock breakage were found — both fixed
-> - **Packaging** — Hypora is now an RPM in the [`mizfitxtm/hypora` COPR](copr.md), built for Fedora 44, 45 and Rawhide (see [Fedora releases](copr.md#fedora-releases-and-rawhide)). Only **44** has been installed and tested; 45 is out and being tested, and Rawhide, the development branch, is built as an early warning but not supported. Fedora 43 is not built: it is end of life and the Hyprland COPR does not support it. The new installer path has not yet been run from a clean install
+> - **Packaging** — Hypora is now an RPM in the [`mizfitxtm/hypora` COPR](copr.md), built for Fedora 44, 45 and Rawhide (see [Fedora releases](copr.md#fedora-releases-and-rawhide)). Fedora 44 and 45 have each been installed and tested from the COPR on Workstation and the Everything netinstall. Rawhide, the development branch, is built as an early warning but not supported. Fedora 43 is not built: it is end of life and the Hyprland COPR does not support it
 > - **Theming** — TokyoNight's `dim` colour sits at 2.76 contrast, just under the 3.0 floor the other themes meet
 >
 > Most development happened in a VM. It has since been installed and booted on bare metal, but hardware-specific pieces (GPU, battery, backlight) have had far less exercise than the rest. Please [file what you find](../readme.md#reporting-bugs).
@@ -23,7 +23,7 @@ The detail behind the [readme](../readme.md): what is incomplete, requirements, 
 
 Hypora is built and tested against one baseline, and everything below works on it:
 
-> **Fedora Everything netinstall**, with **"Encrypt my data" ticked** and **btrfs** as the filesystem.
+> **Fedora Everything netinstall** or **Fedora Workstation**, with **"Encrypt my data" ticked** and **btrfs** as the filesystem.
 
 None of the three is enforced — the installer runs on a stock Workstation install on ext4 without encryption and most of it works fine. But each one you skip takes a feature with it, and two cannot be added later without reinstalling:
 
@@ -37,7 +37,7 @@ The installer checks these at the start, tells you which you are missing, and ca
 
 Also needed:
 
-- A fresh **Fedora** install (tested on Fedora 44), an internet connection, and a user with `sudo`
+- A fresh **Fedora** install (tested on Fedora 44 and 45), an internet connection, and a user with `sudo`
 - **Hyprland 0.55 or newer** — the config is Lua (`hyprland.lua`), which replaces the deprecated `hyprland.conf` format
 - A Quickshell build with the PipeWire, system tray, notifications, UPower and polkit modules. The installer enables COPRs if the packages aren't in the main repos
 - **The SSH server is switched off** and port 22 closed. Why, and how to keep it: [Network exposure](security.md#network-exposure)

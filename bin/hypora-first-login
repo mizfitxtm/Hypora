@@ -4,27 +4,30 @@
 set -euo pipefail
 
 flag="$HOME/.config/hypora/pending-replace-de"
+replace=/usr/local/bin/hypora-replace-de
 [ -f "$flag" ] || exit 0
 # Only inside Hyprland, never from the old desktop
 [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || exit 0
 
 # Already gone (removed by hand): nothing to offer
-if ! hypora-replace-de list >/dev/null 2>&1; then
+if ! "$replace" list >/dev/null 2>&1; then
   rm -f "$flag"
   exit 0
 fi
 
 # Let Quickshell and the keyring come up first
 sleep 8
-# The note is dropped before asking, so declining does not ask again at every login
-rm -f "$flag"
+# The note is only dropped once you have answered, so a terminal that failed to open is retried next login
 exec kitty --title "Hypora: remove the old desktop" bash -c '
-  hypora-replace-de list
+  flag=$1
+  replace=$2
+  "$replace" list
   printf "\nHypora can remove that desktop and the settings it left in your home folder.\n"
   printf "Nothing it uses is touched. Run later with: sudo hypora-replace-de remove\n\n"
   read -r -p "Remove it now? [y/N] " answer
+  rm -f "$flag"
   case "$answer" in
-  [Yy]*) sudo /usr/local/bin/hypora-replace-de remove ;;
+  [Yy]*) sudo "$replace" remove ;;
   esac
   read -r -p "Press Enter to close" _
-'
+' _ "$flag" "$replace"

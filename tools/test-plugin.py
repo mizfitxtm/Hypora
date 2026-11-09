@@ -2,11 +2,13 @@
 """Tests for bin/hypora-plugin. Run: python3 tools/test-plugin.py"""
 import importlib.machinery
 import importlib.util
+import io
 import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 loader = importlib.machinery.SourceFileLoader("hypora_plugin", str(ROOT / "bin" / "hypora-plugin"))
@@ -150,7 +152,8 @@ class InstallTests(unittest.TestCase):
 
     def test_refuses_without_confirmation_off_a_terminal(self):
         make_plugin(self.src)
-        with self.assertRaises(hp.PluginError) as ctx:
+        # StringIO is not a terminal, so this also passes when the tests are run from one
+        with mock.patch.object(hp.sys, "stdin", io.StringIO()), self.assertRaises(hp.PluginError) as ctx:
             hp.install(self.paths, str(self.src), assume_yes=False, out=self.out.append)
         self.assertIn("--yes", str(ctx.exception))
         self.assertFalse((self.paths.qs / "Demo.qml").exists())

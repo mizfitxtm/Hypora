@@ -19,7 +19,7 @@ Users run three commands: `sudo dnf copr enable mizfitxtm/hypora`, `sudo dnf ins
 
 ## Fedora releases and Rawhide
 
-The package builds for Fedora 44, 45 and Rawhide (x86_64). Only 44 has been installed and tested; 45 is out and being tested. Fedora 43 is not built: it is end of life, and the Hyprland COPR does not build for it.
+The package builds for Fedora 44, 45 and Rawhide (x86_64). Fedora 44 and 45 have each been installed and tested from the COPR on Workstation and the Everything netinstall. Fedora 43 is not built: it is end of life, and the Hyprland COPR does not build for it.
 
 **Rawhide** is Fedora's development branch. Every numbered release is cut from it, and it keeps moving afterwards: newest kernel, libraries and desktop packages first. Fedora itself warns it can break, with packages that will not install for a day or two or builds that fail when a library changes. For Hypora that means:
 

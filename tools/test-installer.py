@@ -103,6 +103,17 @@ class CoprKeyTests(unittest.TestCase):
         self.assertEqual(self.check("'deadbeef gpg(someone_else (None))'", self.GOOD), "rc=0")
 
 
+class LoginThemeTests(unittest.TestCase):
+    def test_session_lookup_does_not_use_display_role(self):
+        # SDDM's SessionModel has no DisplayRole: it returned "" for every row, so the first session
+        # (GNOME Classic, on a Workstation install) was chosen instead of Hyprland.
+        qml = (ROOT / "system/sddm/hypora/Main.qml").read_text()
+        lookups = [l for l in qml.splitlines() if "sessionModel.data(" in l]
+        self.assertTrue(lookups)
+        for line in lookups:
+            self.assertNotIn("DisplayRole", line)
+
+
 class SyntaxTests(unittest.TestCase):
     def test_scripts_parse(self):
         for f in ("install.sh", "hypora-setup", "lib.sh"):

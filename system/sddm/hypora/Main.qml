@@ -47,13 +47,17 @@ Rectangle {
     readonly property string userName: userModel.data(userModel.index(userIndex, 0), Qt.UserRole + 1) || ""
     readonly property string realName: userModel.data(userModel.index(userIndex, 0), Qt.UserRole + 2) || ""
 
-    // Prefer the uwsm-managed Hyprland session
+    // Prefer the uwsm-managed Hyprland session. SessionModel roles: file = UserRole + 2, name = UserRole + 4;
+    // it has no DisplayRole, which read "" for every row, so with GNOME installed the first session won.
     readonly property int sessionIndex: {
         let fallback = sessionModel.lastIndex
         for (let i = 0; i < sessionModel.rowCount(); i++) {
-            const name = String(sessionModel.data(sessionModel.index(i, 0), Qt.DisplayRole) || "")
-            if (name.indexOf("uwsm") !== -1) return i
-            if (name.indexOf("Hyprland") !== -1) fallback = i
+            const file = String(sessionModel.data(sessionModel.index(i, 0), Qt.UserRole + 2) || "")
+            const name = String(sessionModel.data(sessionModel.index(i, 0), Qt.UserRole + 4) || "")
+            const text = (file + " " + name).toLowerCase()
+            if (text.indexOf("hyprland") === -1) continue
+            if (text.indexOf("uwsm") !== -1) return i
+            fallback = i
         }
         return fallback
     }
