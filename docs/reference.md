@@ -107,7 +107,7 @@ Without the login screen, start it from a text console with `uwsm start hyprland
 | Notifications (`Notifications.qml`) | Quickshell *is* the notification daemon: popups top-right, auto-expire, critical ones persist, action buttons supported |
 | Launcher (`Launcher.qml`) | **SUPER + R**: type to filter, Tab or arrows to select, Enter to launch, Esc to close. Everyday apps only — control panels (anything in the freedesktop `Settings` category) live under the menu's Settings section |
 | Plugins (`BarPlugins.qml`) | A slot in each part of the bar for items other people write, loaded from `~/.config/hypora/plugins.json`. Install one with `hypora-install-plugin` from a cloned plugin repository; you are shown every file and script, and asked, first. See [Plugins](plugins.md) |
-| Tray, Volume, Icons, Polkit | System tray with left / middle / right click actions (`Tray.qml`), scrollable volume icon (`Volume.qml`), inline-SVG line icons and logo drawn in the theme's colours so no icon font is needed (`Icon.qml`, `Logo.qml`), and a full-screen polkit prompt that works with `pkexec` and anything else (`PolkitDialog.qml`) |
+| Tray, Volume, Icons, Polkit | System tray with left / middle / right click actions and a menu drawn in the theme (`Tray.qml`, `TrayMenu.qml`); icons from the icon theme take the theme's colour, scrollable volume icon (`Volume.qml`), inline-SVG line icons and logo drawn in the theme's colours so no icon font is needed (`Icon.qml`, `Logo.qml`), and a full-screen polkit prompt that works with `pkexec` and anything else (`PolkitDialog.qml`) |
 
 The shell is never run as root. Why, and which helpers are root-owned: [The Security and Privacy window](security.md#the-security-and-privacy-window).
 

@@ -1,6 +1,6 @@
 Name:           hypora
 Version:        1.2.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
 URL:            https://github.com/mizfitxtm/Hypora
@@ -123,6 +123,10 @@ echo "Hypora is installed. Run hypora-setup as your normal user to finish."
 %{_bindir}/hypora-setup
 
 %changelog
+* Wed Nov 11 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.2.0-2
+- Tray apps open a menu drawn in the theme on right click, and on left click for menu-only apps like Steam and Discord
+- Tray icons from the icon theme take the theme's colour, and the accent on hover
+
 * Wed Nov 11 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.2.0-1
 - Notifications, the password prompt and the Bluetooth trust question open on the monitor you are using
 - The daily update check says when hypora-setup needs to run to finish a Hypora update
