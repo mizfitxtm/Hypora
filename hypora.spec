@@ -1,6 +1,6 @@
 Name:           hypora
 Version:        1.1.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
 URL:            https://github.com/mizfitxtm/Hypora
@@ -123,6 +123,11 @@ echo "Hypora is installed. Run hypora-setup as your normal user to finish."
 %{_bindir}/hypora-setup
 
 %changelog
+* Wed Nov 11 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.1.0-2
+- The USB device notification stays on screen until answered, and gains a "Keep blocked" button
+- hypora-setup starts USBGuard when Hardened mode was switched on before usbguard was installed
+- Readme lists the Trivalent signing key fingerprint
+
 * Wed Nov 11 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.1.0-1
 - Kernel and login hardening by default: sysctl settings, a module blocklist, no core dumps, login lockout, authenticated time (HARDENING=no skips it)
 - Hardened mode in the Security window: stricter kernel arguments, strict DNS and USBGuard, with a notification to allow new USB devices

@@ -878,6 +878,13 @@ for name in "${ROOT_OWNED[@]}"; do
   rm -f "$HOME/.local/bin/$name"
 done
 
+# Hardened mode switched on before usbguard was installed never started it; applying it again is safe and starts it.
+if [ -f /etc/hypora/hardened ] && command -v usbguard >/dev/null 2>&1 && ! systemctl is-active --quiet usbguard; then
+  log "Finishing Hardened mode: starting USBGuard with the USB devices plugged in now"
+  sudo /usr/local/bin/hypora-security harden on ||
+    warn "Could not start USBGuard; run: sudo hypora-security harden on"
+fi
+
 # Copy the main display into the theme dir for the greeter (it cannot read monitors.lua); run after the bin loop.
 primary=""
 if [ -f "$CONF/hypr/monitors.lua" ]; then

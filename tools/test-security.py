@@ -306,6 +306,16 @@ class UsbWatchTests(unittest.TestCase):
         with mock.patch.object(self.uw.subprocess, "run", side_effect=fake_run):
             self.uw.ask("14", "Ultra Fit")
         self.assertEqual(calls[-1], ["usbguard", "allow-device", "14", "-p"])
+        self.assertIn("--urgency=critical", calls[0])      # critical is what keeps it on screen until answered
+
+    def test_keep_blocked_does_nothing(self):
+        calls = []
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            return mock.Mock(stdout="block\n")
+        with mock.patch.object(self.uw.subprocess, "run", side_effect=fake_run):
+            self.uw.ask("14", "Ultra Fit")
+        self.assertEqual(len(calls), 1)                     # only the notification, no usbguard call
 
 
 class HardeningFileTests(unittest.TestCase):

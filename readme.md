@@ -62,7 +62,13 @@ When dnf asks to import a signing key, check the fingerprint on screen against t
 | mizfitxtm/hypora | `387B FC4E 4D37 EADD 3305 6EB4 1602 D18E 965B CEC2` |
 | sdegler/hyprland | `64BB BF01 3D1C A5E4 BE5B 0552 C043 1042 0786 2204` |
 
-The same table is published at [mizfitxtm.dev/hypora/keys](https://mizfitxtm.dev/hypora/keys/), a separate place from this repository, so one compromised account cannot change both. `hypora-setup` checks them again afterwards. It is safe to re-run, and anything it replaces is saved as `<name>.bak.<timestamp>`. Pick a theme with `THEME=TokyoNight hypora-setup`. To update, run `sudo dnf upgrade hypora` and then `hypora-setup`.
+If you choose **Trivalent** as your browser, `hypora-setup` also adds the secureblue project's repository, limited to the Trivalent packages. dnf does not ask about that key: `hypora-setup` checks it against this fingerprint and imports it only on a match.
+
+| Repository | Fingerprint |
+|---|---|
+| repo.secureblue.dev (Trivalent only) | `26B4 463E D8F3 13BC 7E3F BDF9 D922 3AF0 F47B 3E41` |
+
+All three fingerprints are also published at [mizfitxtm.dev/hypora/keys](https://mizfitxtm.dev/hypora/keys/), a separate place from this repository, so one compromised account cannot change both. `hypora-setup` checks them again afterwards. It is safe to re-run, and anything it replaces is saved as `<name>.bak.<timestamp>`. Pick a theme with `THEME=TokyoNight hypora-setup`. To update, run `sudo dnf upgrade hypora` and then `hypora-setup`.
 
 **Optional: the installer script.** `install.sh` in this repo does the same three steps, but checks each key against the recorded fingerprint *before* installing anything. Clone the repo and run `./install.sh` if you prefer that. The details are in [Installing in detail](docs/reference.md#installing-in-detail) and [COPR](docs/copr.md).
 

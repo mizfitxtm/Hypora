@@ -236,7 +236,7 @@ Don't run another notification daemon (Mako, dunst, swaync) or polkit agent alon
 
 ## Known limitations
 
-See [Known issues](reference.md#known-issues) above for what is incomplete or actively broken. Beyond that:
+See [Known issues](#known-issues) above for what is incomplete or actively broken. Beyond that:
 
 - The Hyprland Lua config format is new; if something misbehaves after a Hyprland update, check `hyprctl configerrors` and the Hyprland wiki
 - Hyprland comes from the third-party `sdegler/hyprland` COPR, so builds may lag behind or break after Fedora updates

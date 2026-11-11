@@ -3,7 +3,8 @@
 
 Runs as your user (the hypora-usb-watch user service) while Hardened mode is on. It reads
 `usbguard watch` and sends one notification per newly blocked device, with "Allow once"
-(until it is unplugged) and "Always allow" (adds a rule). No answer leaves it blocked.
+(until it is unplugged), "Always allow" (adds a rule) and "Keep blocked". It is sent as
+critical, so it stays on screen until you answer and shows through Do Not Disturb.
 
 Members of the wheel group may talk to USBGuard (IPCAllowedGroups in usbguard-daemon.conf),
 so this needs no root.
@@ -52,11 +53,12 @@ def ask(dev_id, label):
     """Show the notification and act on the button pressed, if any."""
     try:
         r = subprocess.run(
-            ["notify-send", "--app-name=Hypora", "--icon=drive-removable-media-usb",
-             "--action=once=Allow once", "--action=always=Always allow",
+            # critical: Hypora's notification daemon never expires those, so the question waits for an answer
+            ["notify-send", "--app-name=Hypora", "--icon=drive-removable-media-usb", "--urgency=critical",
+             "--action=once=Allow once", "--action=always=Always allow", "--action=block=Keep blocked",
              "USB device blocked",
              f"{label} was plugged in while Hardened mode is on. It stays blocked unless you allow it."],
-            capture_output=True, text=True, timeout=600)
+            capture_output=True, text=True)
     except (OSError, subprocess.SubprocessError):
         return
     choice = r.stdout.strip()
