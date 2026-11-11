@@ -228,7 +228,9 @@ def assess():
         d["wouldUse"] = resolve_module(d["modalias"]) if not d["driver"] else d["driver"]
         d["issues"] = []
 
-        if not d["driver"]:
+        # A camera switched off in Security has no driver on purpose; camera-off below says so
+        camera_off = d["kind"] == "camera" and not module_loaded("uvcvideo")
+        if not d["driver"] and not camera_off:
             if d["wouldUse"]:
                 d["issues"].append(("driver-not-loaded",
                                     f"No driver bound, but the kernel has {d['wouldUse']} for it."))
@@ -247,7 +249,7 @@ def assess():
             d["issues"].append(("rfkill-soft", "The radio is switched off (soft rfkill)."))
 
         # Hypora's Security window can unload the camera driver; say so
-        if d["kind"] == "camera" and not module_loaded("uvcvideo"):
+        if camera_off:
             d["issues"].append(("camera-off",
                                 "uvcvideo isn't loaded — Menu > Security may have disabled it."))
     return devices
@@ -323,7 +325,8 @@ def fix(devices):
     # 2. drivers that exist in the kernel but are not bound
     for d in devices:
         mod = d["wouldUse"]
-        if d["driver"] or not mod:
+        # Never load a camera driver: the Security window's camera switch is the only thing that does that
+        if d["driver"] or not mod or d["kind"] == "camera":
             continue
         did = True
         print(f"{C['b']}Loading {mod}{C['x']} for {d['kind']} {d['vendor']}:{d['device']}")

@@ -27,7 +27,14 @@ const balanced = t => {
 };
 
 let problems = 0;
-for (const path of process.argv.slice(2)) {
+// No arguments (how CI runs it) means every QML file Hypora ships; it once checked nothing and still passed.
+const { join } = require("path");
+const files = process.argv.length > 2 ? process.argv.slice(2)
+  : ["config/quickshell", "system/sddm/hypora"].flatMap(d =>
+      fs.readdirSync(join(__dirname, "..", d)).filter(f => f.endsWith(".qml")).map(f => join(__dirname, "..", d, f)));
+if (files.length === 0) { console.log("no QML files found"); process.exit(1); }
+
+for (const path of files) {
   const raw = fs.readFileSync(path, "utf8");
   const lines = strip(raw).split("\n");
   const rawLines = raw.split("\n");
@@ -54,8 +61,9 @@ for (const path of process.argv.slice(2)) {
       new Function(`return (${expr});`);
     } catch (e) {
       if (!(e instanceof SyntaxError)) continue;
-      // Report only the ??-mixing error: the parser also rejects non-JS QML syntax, and a noisy check is one nobody runs.
-      if (!/\?\?/.test(e.message)) continue;
+      // Report only the ??-mixing error (either order): if it parses with ?? swapped for ||, the mix was the problem.
+      // The parser also rejects non-JS QML syntax, and a noisy check is one nobody runs.
+      try { new Function(`return (${expr.replace(/\?\?/g, "||")});`); } catch (e2) { continue; }
       console.log(`${path}:${i + 1}: ${e.message}`);
       console.log(`    ${rawLines[i].trim()}`);
       if (j > i) console.log(`    ${rawLines[j].trim()}`);
@@ -63,5 +71,5 @@ for (const path of process.argv.slice(2)) {
     }
   }
 }
-console.log(problems ? `\n${problems} problem(s) found` : "no ?? mixed with || or && in any QML binding");
+console.log(problems ? `\n${problems} problem(s) found` : `no ?? mixed with || or && in any QML binding (${files.length} files)`);
 process.exit(problems ? 1 : 0);

@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Bluetooth
 import QtQuick
@@ -20,6 +21,8 @@ Scope {
         active: root.device !== null
 
         PanelWindow {
+            // On the monitor you are using, not one Quickshell picks
+            screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
             anchors { top: true }
             margins { top: 40 }
             exclusionMode: ExclusionMode.Ignore

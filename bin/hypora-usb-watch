@@ -43,8 +43,8 @@ def blocked(lines):
         cur[key] = value
         if cur.get("event") == "Remove":
             seen.discard(cur["id"])     # plugged in again later, it is asked about again
-        fresh = cur["kind"] == "PolicyApplied" or cur.get("event") == "Insert"
-        if key == "device_rule" and fresh and cur.get("target") == "block" and cur["id"] not in seen:
+        # Only an insert carries `target=`; PolicyChanged and PolicyApplied report `target_new=` for the same device
+        if key == "device_rule" and cur.get("event") == "Insert" and cur.get("target") == "block" and cur["id"] not in seen:
             seen.add(cur["id"])
             yield cur["id"], device_label(value)
 

@@ -13,6 +13,16 @@ should_notify() {
   [ "$1" -ne "$2" ] || [ $(($4 - $3)) -ge "$REMIND_AFTER" ]
 }
 
+# dnf only updates /usr/share/hypora; the desktop and root helpers change when hypora-setup copies them over.
+stamp="${XDG_CONFIG_HOME:-$HOME/.config}/hypora/installed.version"
+pkg=$(rpm -q --qf '%{VERSION}-%{RELEASE}' hypora 2>/dev/null) || pkg=""
+setup=$(sed -n 's/^version=//p' "$stamp" 2>/dev/null || true)
+if [ -n "$pkg" ] && [ -n "$setup" ] && [ "$pkg" != "$setup" ]; then
+  echo "Hypora $pkg is installed, but this account is set up from $setup. Finish the update with: hypora-setup"
+  [ "${1:-}" = "--notify" ] && { notify-send --app-name=Hypora --icon=software-update-available \
+    "Finish the Hypora update" "Hypora $pkg is installed. Run hypora-setup in a terminal to apply it." || true; }
+fi
+
 # Package names with a newer version in the enabled repositories. Failing (offline, repo down) is not news.
 names=$(dnf repoquery --upgrades --refresh -q --qf '%{name}\n' </dev/null 2>/dev/null) || exit 0
 count=$(printf '%s\n' "$names" | sort -u | grep -c . || true)

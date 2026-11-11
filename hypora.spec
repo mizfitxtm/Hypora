@@ -1,6 +1,6 @@
 Name:           hypora
-Version:        1.1.0
-Release:        2%{?dist}
+Version:        1.2.0
+Release:        1%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
 URL:            https://github.com/mizfitxtm/Hypora
@@ -123,6 +123,19 @@ echo "Hypora is installed. Run hypora-setup as your normal user to finish."
 %{_bindir}/hypora-setup
 
 %changelog
+* Wed Nov 11 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.2.0-1
+- Notifications, the password prompt and the Bluetooth trust question open on the monitor you are using
+- The daily update check says when hypora-setup needs to run to finish a Hypora update
+- hypora-setup keeps your own themes (from Cosmos) instead of stopping, and no longer turns a camera switched off in Security back on
+- hypora-setup re-runs skip the boot menu rebuild and its backup when nothing changed, and open LocalSend's port only when LocalSend is installed
+- The login screen says when too many wrong passwords have locked the account
+- Smart cards and YubiKeys work in Zen and Brave too
+- The battery guard suspends again if you resume below 5% on battery
+- Weather on a second monitor follows the place picked on the first
+- Brightness down stops at 1% instead of a black screen; Up and Down in zsh no longer say "No such widget"
+- hypora-plugin update keeps the --ref or --commit a plugin was installed with, and works for local plugins from any folder
+- hypora-replace-de protects everything the hypora package needs
+- The QML check in CI now checks every QML file (it checked none)
 * Wed Nov 11 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.1.0-2
 - The USB device notification stays on screen until answered, and gains a "Keep blocked" button
 - hypora-setup starts USBGuard when Hardened mode was switched on before usbguard was installed

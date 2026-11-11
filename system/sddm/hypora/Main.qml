@@ -63,12 +63,15 @@ Rectangle {
     }
 
     property bool failed: false
+    // Login lockout (faillock, deny = 5) makes even the right password fail, so say so instead of "Wrong password"
+    property int failures: 0
     property bool busy: false
     property date now: new Date()
 
     function cycleUser(step) {
         if (userCount > 1) userIndex = (userIndex + step + userCount) % userCount
         password.text = ""
+        failures = 0
     }
 
     function login() {
@@ -82,6 +85,7 @@ Rectangle {
         function onLoginFailed() {
             root.busy = false
             root.failed = true
+            root.failures++
             password.text = ""
             shake.restart()
             password.forceActiveFocus()
@@ -185,7 +189,9 @@ Rectangle {
             Text {
                 anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom }
                 visible: root.failed
-                text: "Wrong password"
+                text: root.failures >= 5 ? "Too many attempts: locked for 10 minutes"
+                      : root.failures === 4 ? "Wrong password. One more locks it for 10 minutes"
+                      : "Wrong password"
                 font.family: root.font; font.pixelSize: 13
                 color: root.error
             }

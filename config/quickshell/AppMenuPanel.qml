@@ -239,7 +239,8 @@ Rectangle {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onEntered: list.currentIndex = row.index
-                    onClicked: { root.activate(row.modelData); search.forceActiveFocus() }
+                    // Focus first: opening a section replaces the list, which destroys this row mid-handler
+                    onClicked: { search.forceActiveFocus(); root.activate(row.modelData) }
                 }
             }
 

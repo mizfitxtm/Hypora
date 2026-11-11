@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Notifications
@@ -20,6 +21,8 @@ Scope {
 
     PanelWindow {
         visible: server.trackedNotifications.values.some(n => shown(n))
+        // On the monitor you are using; left unset, Quickshell picked another one and a USB question went unseen
+        screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
         anchors { top: true; right: true }
         margins { top: 40; right: 12 }
         exclusionMode: ExclusionMode.Ignore

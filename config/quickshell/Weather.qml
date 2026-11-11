@@ -64,6 +64,9 @@ Rectangle {
         path: Quickshell.env("HOME") + "/.config/hypora/weather.json"
         blockLoading: true
         printErrors: false
+        // Each monitor's bar has its own copy, so a place picked or forgotten on one reaches the others
+        watchChanges: true
+        onFileChanged: reload()
         onLoaded: {
             try {
                 const saved = JSON.parse(text())
@@ -71,6 +74,9 @@ Rectangle {
                     root.place = saved
                     root.unit = saved.unit || "C"
                     root.refresh()
+                } else {
+                    root.place = null
+                    root.report = null
                 }
             } catch (e) {
                 // no place picked yet

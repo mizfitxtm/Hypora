@@ -330,7 +330,8 @@ hl.bind(
 )
 hl.bind(
 	"XF86MonBrightnessDown",
-	hl.dsp.exec_cmd("brightnessctl set 5%- && qs ipc call osd brightness"),
+	-- -n stops at 1, like the control panel slider: 0 turns some laptop screens fully black
+	hl.dsp.exec_cmd("brightnessctl -n set 5%- && qs ipc call osd brightness"),
 	{ locked = true, repeating = true }
 )
 

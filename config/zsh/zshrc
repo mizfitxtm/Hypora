@@ -50,8 +50,14 @@ for f in /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh \
 done
 
 # ---------- keys ----------
-bindkey '^[[A' history-substring-search-up 2>/dev/null || bindkey '^[[A' up-line-or-search
-bindkey '^[[B' history-substring-search-down 2>/dev/null || bindkey '^[[B' down-line-or-search
+# bindkey accepts a widget that does not exist, so check it is loaded or Up says "No such widget"
+if zle -la history-substring-search-up; then
+    bindkey '^[[A' history-substring-search-up
+    bindkey '^[[B' history-substring-search-down
+else
+    bindkey '^[[A' up-line-or-search
+    bindkey '^[[B' down-line-or-search
+fi
 bindkey '^[[1;5C' forward-word      # ctrl + right
 bindkey '^[[1;5D' backward-word     # ctrl + left
 bindkey '^[[3~' delete-char

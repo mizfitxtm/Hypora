@@ -3,7 +3,8 @@
 set -u
 
 MODULE=$(readlink -f /usr/lib64/pkcs11/opensc-pkcs11.so)
-BROWSERS=(org.mozilla.firefox com.google.Chrome org.chromium.Chromium)
+# Every flatpak browser hypora-setup offers, plus Chrome
+BROWSERS=(org.mozilla.firefox app.zen_browser.zen org.chromium.Chromium com.brave.Browser com.google.Chrome)
 NSS=$(command -v certutil modutil >/dev/null && echo ok)
 
 die() {
@@ -11,11 +12,14 @@ die() {
   exit 1
 }
 
+gecko() { [ "$1" = org.mozilla.firefox ] || [ "$1" = app.zen_browser.zen ]; }
+
 # Certificate databases of one browser, one per line
 dbs_of() {
   local app=$1 base=$HOME/.var/app/$1
-  if [ "$app" = org.mozilla.firefox ]; then
-    ls -d "$base"/config/mozilla/firefox/*/ "$base"/.mozilla/firefox/*/ 2>/dev/null |
+  # Firefox and Zen keep a database per profile; the Chromium family shares one
+  if gecko "$app"; then
+    ls -d "$base"/config/mozilla/firefox/*/ "$base"/.mozilla/firefox/*/ "$base"/.zen/*/ 2>/dev/null |
       while read -r p; do [ -f "$p/cert9.db" ] && echo "${p%/}"; done
   else
     echo "$base/.pki/nssdb"
@@ -42,11 +46,11 @@ setup() {
     # pcsc: the pcscd socket; LD_LIBRARY_PATH: lets the module find its libraries
     flatpak override --user --socket=pcsc --env=LD_LIBRARY_PATH="$dest" "$app"
 
-    if [ "$app" = org.mozilla.firefox ] && [ -z "$(dbs_of "$app")" ]; then
+    if gecko "$app" && [ -z "$(dbs_of "$app")" ]; then
       echo "$app: no profile yet, starting it once to create one"
       timeout 20 flatpak run "$app" --headless about:blank >/dev/null 2>&1
     fi
-    if [ "$app" != org.mozilla.firefox ] && [ ! -d "$(dbs_of "$app")" ]; then
+    if ! gecko "$app" && [ ! -d "$(dbs_of "$app")" ]; then
       mkdir -p "$(dbs_of "$app")" && certutil -N -d "sql:$(dbs_of "$app")" --empty-password
     fi
     if [ -z "$(dbs_of "$app")" ]; then

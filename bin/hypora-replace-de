@@ -86,8 +86,9 @@ DESKTOPS = {
            ("i3-", "i3status", "i3lock"), ("i3", "i3status")),
 }
 
-# Never removed. Keep this in step with the Requires in hypora.spec.
+# Never removed, with everything they need. "hypora" brings in every Requires of hypora.spec.
 KEEP = [
+    "hypora",
     "nautilus", "gvfs", "gnome-calculator", "gnome-disk-utility", "gnome-software",
     "adw-gtk3-theme", "gnome-keyring",
     # GNOME apps Hypora keeps because nothing else replaces them

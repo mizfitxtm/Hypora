@@ -407,7 +407,9 @@ def install(paths, source, assume_yes=False, ref=None, commit=None, out=print):
             remove_copy = str(state_dir / "remove")
             write_atomic(Path(remove_copy), read_source_file(root, m.setup_remove), 0o755)
         state = {"id": m.id, "name": m.name, "version": m.version, "component": m.component,
-                 "slot": m.slot, "hide_tray": m.hide_tray, "source": source or str(root), "commit": commit_id,
+                 # a local path is saved resolved, so `update` works from any folder; ref and pin are kept for `update`
+                 "slot": m.slot, "hide_tray": m.hide_tray, "source": source if tmp else str(root), "commit": commit_id,
+                 "ref": ref or "", "pinned": commit or "",
                  "enabled": (previous or {}).get("enabled", True), "files": written,
                  "remove_script": remove_copy, "setup_env": m.setup_env}
         write_atomic(state_path(paths, m.id), json.dumps(state, indent=1) + "\n")
@@ -501,7 +503,7 @@ def main(argv=None):
             st = load_state(paths, a.id)
             if not st:
                 raise PluginError(f"'{a.id}' is not installed")
-            install(paths, st["source"], False, commit=None)
+            install(paths, st["source"], False, ref=st.get("ref") or None, commit=st.get("pinned") or None)
         elif a.cmd in ("enable", "disable"):
             set_enabled(paths, a.id, a.cmd == "enable")
         else:

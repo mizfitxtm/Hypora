@@ -454,6 +454,25 @@ def cmd_status():
     return 0
 
 
+def desired_default(text, dest):
+    """/etc/default/grub as `apply` leaves it."""
+    # Remove GFXPAYLOAD instead of setting it: "keep" brings GRUB's last frame back before login.
+    return set_keys(unset_keys(text, ["GRUB_GFXPAYLOAD_LINUX"]), {
+        "GRUB_THEME": str(dest / "theme.txt"),
+        # a theme is invisible in console mode
+        "GRUB_TERMINAL_OUTPUT": '"gfxterm"',
+        "GRUB_GFXMODE": "auto",
+    })
+
+
+def up_to_date(text, new, theme_file, theme):
+    """True if an earlier apply finished with this theme, so hypora-setup re-runs skip the backup and grub2-mkconfig."""
+    # A failed grub2-mkconfig restores the backup, so a finished apply is the only way all three hold
+    m = re.search(r'^\s*GRUB_CMDLINE_LINUX="([^"]*)"', text, re.M)
+    return (new == text and m is not None and all(a in m.group(1).split() for a in KERNEL_ARGS)
+            and theme_file.is_file() and theme_file.read_text() == theme)
+
+
 def cmd_apply():
     need_root()
     gdir = grub_dir()
@@ -464,29 +483,25 @@ def cmd_apply():
 
     name, colors = palette()
     dest = gdir / "themes" / THEME_NAME
-    dest.mkdir(parents=True, exist_ok=True)
+    theme = theme_txt(colors, name)
 
-    (dest / "theme.txt").write_text(theme_txt(colors, name))
-    write_assets(dest, colors)
-    problems = make_fonts(dest)
-
-    # Back up /etc/default/grub: a mistake here can leave the machine at a GRUB prompt
     try:
         text = GRUB_DEFAULT.read_text()
     except OSError as e:
         sys.exit(f"Cannot read {GRUB_DEFAULT}: {e}")
+    new = desired_default(text, dest)
+    if up_to_date(text, new, dest / "theme.txt", theme):
+        print(f"Boot menu is already themed with {name}.")
+        return 0
+
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "theme.txt").write_text(theme)
+    write_assets(dest, colors)
+    problems = make_fonts(dest)
+
+    # Back up /etc/default/grub: a mistake here can leave the machine at a GRUB prompt
     backup = GRUB_DEFAULT.with_name(GRUB_DEFAULT.name + time.strftime(".hypora-%Y%m%d-%H%M%S"))
     shutil.copy2(GRUB_DEFAULT, backup)
-
-    # Remove GFXPAYLOAD instead of setting it: "keep" brings GRUB's last frame back before login.
-    text = unset_keys(text, ["GRUB_GFXPAYLOAD_LINUX"])
-
-    new = set_keys(text, {
-        "GRUB_THEME": str(dest / "theme.txt"),
-        # a theme is invisible in console mode
-        "GRUB_TERMINAL_OUTPUT": '"gfxterm"',
-        "GRUB_GFXMODE": "auto",
-    })
     atomic_write(GRUB_DEFAULT, new)
 
     ok, detail = _kernel_args(True)

@@ -1,16 +1,29 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Services.Polkit
 import QtQuick
 import QtQuick.Layouts
 
 Scope {
+    id: root
     PolkitAgent { id: agent }
+
+    // Picked once per prompt, so moving the mouse to another monitor cannot recreate the window and lose a half-typed password
+    property var promptScreen: null
+    Connections {
+        target: agent
+        function onIsActiveChanged() {
+            if (agent.isActive) root.promptScreen = Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
+        }
+    }
 
     LazyLoader {
         active: agent.isActive
 
         PanelWindow {
+            // On the monitor you are using: this grabs the keyboard, so on another screen the desktop looks frozen
+            screen: root.promptScreen
             anchors { top: true; bottom: true; left: true; right: true }
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.layer: WlrLayer.Overlay

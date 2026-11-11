@@ -80,8 +80,11 @@ Scope {
         id: suspendSoon
         interval: 8000
         // Check `valid` again when it fires: a suspend on a reading that has gone away cannot be undone.
-        onTriggered: if (root.valid && root.discharging && root.charge >= 0
-                         && root.charge <= root.suspendAt)
-                         Quickshell.execDetached(["systemctl", "suspend"])
+        onTriggered: {
+            if (root.valid && root.discharging && root.charge >= 0 && root.charge <= root.suspendAt)
+                Quickshell.execDetached(["systemctl", "suspend"])
+            // Re-arm: resumed still unplugged below 5%, the next reading suspends again instead of draining to zero
+            root.suspending = false
+        }
     }
 }

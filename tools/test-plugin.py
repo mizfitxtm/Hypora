@@ -224,6 +224,26 @@ class InstallTests(unittest.TestCase):
         self.assertIn("update demo-pods", str(ctx.exception))
         self.assertTrue((self.paths.qs / "Demo.qml").exists())
 
+    def test_relative_source_is_saved_resolved_so_update_works_anywhere(self):
+        make_plugin(self.src)
+        cwd = os.getcwd()
+        os.chdir(self.src.parent)
+        try:
+            hp.install(self.paths, "plugin", assume_yes=True, out=self.out.append)
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(hp.load_state(self.paths, "demo-pods")["source"], str(self.src.resolve()))
+
+    def test_update_keeps_the_ref_and_pin_it_was_installed_with(self):
+        make_plugin(self.src)
+        self.install()
+        st = hp.load_state(self.paths, "demo-pods")
+        st.update(source="https://example.org/p.git", ref="v1", pinned="a" * 40)
+        hp.write_atomic(hp.state_path(self.paths, "demo-pods"), json.dumps(st))
+        with mock.patch.object(hp, "install") as inst:
+            hp.main(["update", "demo-pods"])
+        self.assertEqual(inst.call_args.kwargs, {"ref": "v1", "commit": "a" * 40})
+
 
 class MiscTests(unittest.TestCase):
     def test_urls(self):

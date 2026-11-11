@@ -49,7 +49,7 @@ Hypora installer pins everything it fetches. `--ref` takes a branch or tag, whic
 | `hypora-plugin install [SOURCE]` | Install from a directory (default: the current one) or a git URL. Installing again updates |
 | `hypora-plugin list [--json]` | What is installed, where in the bar, enabled or not |
 | `hypora-plugin disable ID` / `enable ID` | Hide or show the bar item; nothing is removed |
-| `hypora-plugin update ID` | Install again from where it came from, with the same summary and question (always asked; `update` has no `--yes`, because it fetches new code) |
+| `hypora-plugin update ID` | Install again from where it came from, with the same summary and question (always asked; `update` has no `--yes`, because it fetches new code). It keeps the `--ref` it was installed with; a `--commit` pin stays on that commit, so install again with a new `--commit` to move it |
 | `hypora-plugin remove ID` | Undo the install: its remove script, then its files |
 
 Files you edited are never deleted or silently replaced: on update the old copy is saved as

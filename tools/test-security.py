@@ -257,34 +257,72 @@ class HardenTests(unittest.TestCase):
                 self.hs.set_network_zone("trusted; rm -rf /")
 
 
+
+class HardwareFixTests(unittest.TestCase):
+    """hypora-setup runs `hardware fix` on every run, so it must not undo the Security window's camera switch."""
+
+    def test_fix_never_loads_a_camera_driver(self):
+        hh = load("hypora-hardware")
+        cam = {"kind": "camera", "driver": "", "wouldUse": "uvcvideo", "firmware": "", "firmwareInstalled": None,
+               "vendor": "046d", "device": "0825"}
+        calls = []
+        with mock.patch.object(hh.os, "geteuid", return_value=0), \
+             mock.patch.object(hh, "rfkill", return_value={}), \
+             mock.patch.object(hh, "run", side_effect=lambda cmd, **kw: calls.append(cmd) or (0, "")):
+            hh.fix([cam])
+        self.assertEqual(calls, [])
+
+
+class GrubUpToDateTests(unittest.TestCase):
+    """A finished apply is skipped on re-runs, so hypora-setup stops piling up /etc/default/grub backups."""
+
+    def setUp(self):
+        self.hg = load("hypora-grub")
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp)
+        self.theme = self.tmp / "theme.txt"
+
+    def test_skips_only_when_everything_is_already_applied(self):
+        hg = self.hg
+        before = 'GRUB_TIMEOUT=5\nGRUB_CMDLINE_LINUX="rhgb quiet"\n'
+        self.assertFalse(hg.up_to_date(before, hg.desired_default(before, self.tmp), self.theme, "t"))
+        done = hg.desired_default(before, self.tmp).replace('quiet"', 'quiet fbcon=nodefer"')
+        self.assertFalse(hg.up_to_date(done, hg.desired_default(done, self.tmp), self.theme, "t"))  # no theme file yet
+        self.theme.write_text("t")
+        self.assertTrue(hg.up_to_date(done, hg.desired_default(done, self.tmp), self.theme, "t"))
+        self.assertFalse(hg.up_to_date(done, hg.desired_default(done, self.tmp), self.theme, "other colours"))
+
+
 class UsbWatchTests(unittest.TestCase):
     """The notifier reads text a USB device partly controls, so the parsing and cleaning are checked."""
+    # Recorded from usbguard 1.1.4 (`usbguard watch`, Fedora 45) with a USB stick plugged in, then shortened:
+    # the hash fields are cut, and the replug at the end carries a hostile name to test the cleaning.
     WATCH = """[IPC] Connected
-[device] PresenceChanged: id=14
+[device] PresenceChanged: id=28
  event=Insert
  target=block
- device_rule=block id 0781:5581 serial "4C53" name "Ultra <b>\x07Fit" hash "x" with-interface 08:06:50
-[device] PolicyApplied: id=14
- target=block
- device_rule=block id 0781:5581 serial "4C53" name "Ultra <b>\x07Fit" hash "x" with-interface 08:06:50
+ device_rule=block id 0781:5575 serial "04016723020722075411" name "Cruzer Glide" via-port "1-7.2" with-interface 08:06:50 with-connect-type "hotplug"
+[device] PolicyChanged: id=28
+ target_old=block
+ target_new=block
+ device_rule=block id 0781:5575 serial "04016723020722075411" name "Cruzer Glide" via-port "1-7.2" with-interface 08:06:50 with-connect-type "hotplug"
  rule_id=4294967294
-[device] PresenceChanged: id=15
+[device] PolicyApplied: id=28
+ target_new=block
+ device_rule=block id 0781:5575 serial "04016723020722075411" name "Cruzer Glide" via-port "1-7.2" with-interface 08:06:50 with-connect-type "hotplug"
+ rule_id=4294967294
+[device] PresenceChanged: id=29
  event=Insert
  target=allow
  device_rule=allow id 046d:c52b name "Receiver"
-[device] PolicyChanged: id=14
- target_old=block
- target_new=allow
- device_rule=allow id 0781:5581 name "Ultra Fit"
- rule_id=4294967295
-[device] PresenceChanged: id=14
+[device] PresenceChanged: id=28
  event=Remove
- target=allow
- device_rule=allow id 0781:5581 name "Ultra Fit"
-[device] PresenceChanged: id=14
+ target=block
+ device_rule=block id 0781:5575 name "Cruzer Glide"
+[device] PresenceChanged: id=30
  event=Insert
  target=block
- device_rule=block id 0781:5581 name "Ultra Fit"
+ device_rule=block id 0781:5581 serial "4C53" name "Ultra <b>\x07Fit" with-interface 08:06:50
 """
 
     def setUp(self):
@@ -292,10 +330,10 @@ class UsbWatchTests(unittest.TestCase):
 
     def test_asks_once_per_blocked_device_and_again_after_replug(self):
         got = list(self.uw.blocked(self.WATCH.splitlines()))
-        self.assertEqual([i for i, _ in got], ["14", "14"])       # not for the allowed one, not twice per insert
+        self.assertEqual([i for i, _ in got], ["28", "30"])       # once per insert, never for the allowed one
 
     def test_device_name_is_cleaned(self):
-        label = list(self.uw.blocked(self.WATCH.splitlines()))[0][1]
+        label = list(self.uw.blocked(self.WATCH.splitlines()))[1][1]
         self.assertEqual(label, "Ultra &lt;b&gt;Fit (0781:5581)")   # markup escaped, control character dropped
 
     def test_allow_uses_the_numeric_id_only(self):

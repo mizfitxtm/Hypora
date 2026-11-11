@@ -13,7 +13,11 @@ THEME="${THEME:-$(cat "$CONF/hypora/current/name" 2>/dev/null || echo Nord)}"
 [ "$(id -u)" -ne 0 ] || die "Run as your normal user, not root (sudo is used where needed)."
 . /etc/os-release
 [ "${ID:-}" = "fedora" ] || die "This script targets Fedora (found: ${ID:-unknown})."
-[ -f "$REPO/themes/$THEME/colors.toml" ] || die "Theme '$THEME' not found in $REPO/themes/"
+# Your own themes (e.g. from Cosmos) live only in ~/.config/hypora/themes
+if [ ! -f "$REPO/themes/$THEME/colors.toml" ] && [ ! -f "$CONF/hypora/themes/$THEME/colors.toml" ]; then
+  warn "Theme '$THEME' not found in $REPO/themes/ or $CONF/hypora/themes/; using Nord"
+  THEME=Nord
+fi
 [ -d "$REPO/config/quickshell" ] || die "Missing $REPO/config/quickshell"
 
 # Helpers: every copied file is recorded with its checksum so a re-run can tell your edits from replaceable files.
@@ -219,7 +223,7 @@ PROTECT_USER=(
   gsettings-desktop-schemas xorg-x11-server-Xwayland
   gnome-keyring gnome-keyring-pam gcr
   nautilus gvfs gnome-calculator gnome-disk-utility gnome-software
-  gnome-software gnome-calendar baobab simple-scan papers evince
+  gnome-calendar baobab simple-scan papers evince
   loupe gnome-text-editor
   pcsc-lite pcsc-lite-ccid opensc
 )
@@ -613,7 +617,8 @@ if systemctl is-active --quiet firewalld; then
     sudo firewall-cmd --quiet --permanent --remove-port=53317/tcp || true
     sudo firewall-cmd --quiet --permanent --remove-port=53317/udp || true
   fi
-  if [ "${LOCALSEND_LAN:-yes}" != no ]; then
+  # Only when LocalSend is installed: a port nothing listens on is still an open door for whatever does later
+  if [ "${LOCALSEND_LAN:-yes}" != no ] && flatpak info org.localsend.localsend_app >/dev/null 2>&1; then
     sudo firewall-cmd --quiet --permanent --zone=home --add-port=53317/tcp || true # LocalSend
     sudo firewall-cmd --quiet --permanent --zone=home --add-port=53317/udp || true
     log "LocalSend's port is open in the home zone only. Put a trusted network in that zone with:"

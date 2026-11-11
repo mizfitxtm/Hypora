@@ -174,6 +174,27 @@ class UpdateCheckTests(unittest.TestCase):
         self.assertEqual(bash(script).stdout.split(), ["yes", "no", "yes", "no"])
 
 
+    def test_asks_to_run_setup_when_the_package_is_newer_than_the_setup(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            (d / "bin").mkdir()
+            (d / "bin/dnf").write_text("#!/bin/sh\n")
+            (d / "bin/rpm").write_text("#!/bin/sh\nprintf 1.2.0-1\n")
+            (d / "bin/notify-send").write_text(f"#!/bin/sh\necho \"$@\" >> {d}/notes\n")
+            for f in ("dnf", "rpm", "notify-send"):
+                (d / "bin" / f).chmod(0o755)
+            (d / ".config/hypora").mkdir(parents=True)
+            stamp = d / ".config/hypora/installed.version"
+            env = {"HOME": str(d), "PATH": f"{d}/bin:/usr/bin:/bin"}
+            run = lambda: subprocess.run(["bash", str(ROOT / "bin/hypora-update-check"), "--notify"],
+                                         env=env, capture_output=True, text=True).stdout
+            stamp.write_text("version=1.1.0-2\n")
+            self.assertIn("Finish the update with: hypora-setup", run())
+            stamp.write_text("version=1.2.0-1\n")
+            self.assertNotIn("hypora-setup", run())
+            self.assertEqual(len((d / "notes").read_text().splitlines()), 1)
+
+
 class LoginThemeTests(unittest.TestCase):
     def test_session_lookup_does_not_use_display_role(self):
         # SDDM's SessionModel has no DisplayRole: it returned "" for every row, so the first session
