@@ -162,16 +162,20 @@ want_apps() {
 }
 if want_apps; then APPS=yes; else APPS=no; fi
 
-# Browser (a sandboxed flatpak): BROWSER=firefox|chromium|zen|brave answers ahead; no terminal means Firefox.
+# Browser (a sandboxed flatpak, or Trivalent as an RPM): BROWSER=firefox|chromium|zen|brave|trivalent answers ahead; no terminal means Firefox.
 pick_browser() {
   case "${BROWSER:-}" in
-  firefox | chromium | zen | brave)
+  firefox | chromium | zen | brave | trivalent)
     echo "$BROWSER"
     return
     ;;
   esac
   # Already installed (a re-run): keep it instead of asking again
   local pair
+  if rpm -q trivalent >/dev/null 2>&1; then
+    echo trivalent
+    return
+  fi
   for pair in firefox:org.mozilla.firefox chromium:org.chromium.Chromium zen:app.zen_browser.zen brave:com.brave.Browser; do
     if flatpak info "${pair#*:}" >/dev/null 2>&1; then
       echo "${pair%%:*}"
@@ -182,15 +186,16 @@ pick_browser() {
     echo firefox
     return
   fi
-  printf '\n%s\n  1) Firefox (default)\n  2) Chromium\n  3) Zen\n  4) Brave\n' "Choose a browser:" >&2
+  printf '\n%s\n  1) Firefox (default)\n  2) Chromium\n  3) Zen\n  4) Brave\n  5) Trivalent (hardened Chromium, from the secureblue repository)\n' "Choose a browser:" >&2
   read -r -p "Number [1]: " answer
-  case "$answer" in 2) echo chromium ;; 3) echo zen ;; 4) echo brave ;; *) echo firefox ;; esac
+  case "$answer" in 2) echo chromium ;; 3) echo zen ;; 4) echo brave ;; 5) echo trivalent ;; *) echo firefox ;; esac
 }
 BROWSER=$(pick_browser)
 case "$BROWSER" in
 chromium) BROWSER_APP=org.chromium.Chromium ;;
 zen) BROWSER_APP=app.zen_browser.zen ;;
 brave) BROWSER_APP=com.brave.Browser ;;
+trivalent) BROWSER_APP=trivalent ;;
 *) BROWSER_APP=org.mozilla.firefox ;;
 esac
 
@@ -442,10 +447,35 @@ dnf_install flatpak
 sudo flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo ||
   warn "Could not add the Flathub remote"
 
+# Trivalent is an RPM from secureblue's repository (a third party), so its key is checked against a recorded fingerprint first.
+SECUREBLUE_KEY_FPR=26B4463ED8F313BC7E3FBDF9D9223AF0F47B3E41
+install_trivalent() {
+  rpm -q trivalent >/dev/null 2>&1 && return 0
+  log "Installing Trivalent"
+  local key rc=0
+  key=$(mktemp)
+  if curl -fsSL https://repo.secureblue.dev/secureblue.gpg -o "$key" && key_ok "$key" "$SECUREBLUE_KEY_FPR"; then
+    sudo rpm --import "$key"
+    sudo install -m644 "$key" /etc/pki/rpm-gpg/RPM-GPG-KEY-secureblue
+    sudo install -m644 "$REPO/system/yum.repos.d/secureblue.repo" /etc/yum.repos.d/secureblue.repo
+    dnf_install trivalent || rc=1
+  else
+    warn "secureblue's signing key is missing or does not match the recorded fingerprint"
+    rc=1
+  fi
+  rm -f "$key"
+  return "$rc"
+}
+if [ "$BROWSER" = trivalent ] && ! install_trivalent; then
+  warn "Trivalent could not be installed, so Firefox is installed instead"
+  BROWSER=firefox
+  BROWSER_APP=org.mozilla.firefox
+fi
+
 # Apps handling untrusted input (the browser) are sandboxed flatpaks; the rest are native.
-FLATPAKS=(
-  "$BROWSER_APP" # Firefox is publisher-verified by Mozilla; the others come from Flathub as published
-)
+FLATPAKS=()
+# Firefox is publisher-verified by Mozilla; the other flatpak browsers come from Flathub as published
+[ "$BROWSER" = trivalent ] || FLATPAKS+=("$BROWSER_APP")
 # Bundled apps, installed only when want_apps said yes
 APP_FLATPAKS=(
   io.github.flattool.Warehouse # manage installed flatpaks and their leftover data
@@ -478,6 +508,25 @@ else
       warn "Could not set $BROWSER as the default browser"
   fi
 fi
+
+# Browser defaults (telemetry off, HTTPS first, uBlock Origin): Firefox and Zen read them from a Flatpak extension folder. BROWSER_POLICY=no skips it.
+case "$BROWSER" in
+firefox | zen)
+  policy="/var/lib/flatpak/extension/$BROWSER_APP.systemconfig/$(flatpak --default-arch)/stable/policies/policies.json"
+  if [ "${BROWSER_POLICY:-yes}" = no ]; then
+    log "Skipping the browser policy (BROWSER_POLICY=no)"
+  elif [ -f "$policy" ] && ! grep -q 'Managed by Hypora' "$policy"; then
+    log "Keeping your own browser policy at $policy"
+  else
+    log "Installing the browser policy"
+    sudo install -D -m644 "$REPO/system/browser/policies.json" "$policy"
+  fi
+  # On Wayland Firefox needs no X11 socket, and X11 lets a program read other X11 windows' input; fallback-x11 stays.
+  if [ "$BROWSER" = firefox ] && flatpak info "$BROWSER_APP" >/dev/null 2>&1; then
+    sudo flatpak override --system --nosocket=x11 "$BROWSER_APP" || warn "Could not drop Firefox's X11 access"
+  fi
+  ;;
+esac
 
 # Oh My Zsh: clone a pinned commit instead of running its installer; zshrc turns off auto-update so the pin holds.
 if [ -d "$HOME/.oh-my-zsh" ]; then
@@ -755,6 +804,44 @@ else
   fi
 fi
 
+# Kernel and login hardening beyond Fedora's defaults (docs/security.md); HARDENING=no skips it.
+if [ "${HARDENING:-yes}" = no ]; then
+  log "Skipping kernel and login hardening (HARDENING=no)"
+else
+  log "Applying kernel and login hardening"
+  sudo install -d /etc/sysctl.d /etc/modprobe.d /etc/systemd/coredump.conf.d
+  sudo install -m644 "$REPO/system/sysctl.d/60-hypora-hardening.conf" /etc/sysctl.d/60-hypora-hardening.conf
+  sudo install -m644 "$REPO/system/modprobe.d/hypora-blocklist.conf" /etc/modprobe.d/hypora-blocklist.conf
+  sudo install -m644 "$REPO/system/systemd/coredump.conf.d/hypora.conf" /etc/systemd/coredump.conf.d/hypora.conf
+  sudo sysctl -q -p /etc/sysctl.d/60-hypora-hardening.conf ||
+    warn "Some kernel settings did not apply; they are retried at the next boot"
+
+  # Five wrong passwords lock the account for ten minutes; Fedora's three is too easy to hit at the lock screen.
+  if enable_authselect_feature with-faillock "login lockout"; then
+    grep -Eq '^[[:space:]]*deny[[:space:]]*=' /etc/security/faillock.conf 2>/dev/null ||
+      echo 'deny = 5' | sudo tee -a /etc/security/faillock.conf >/dev/null
+  fi
+
+  # Authenticated time (NTS): appended so Fedora's lines stay untouched, and chronyd checks the result first.
+  if [ -f /etc/chrony.conf ] && ! grep -q 'Added by Hypora' /etc/chrony.conf; then
+    tmp=$(mktemp)
+    cat /etc/chrony.conf "$REPO/system/chrony/hypora-nts.conf" >"$tmp"
+    if chronyd -p -f "$tmp" >/dev/null 2>&1; then
+      sudo cp -a /etc/chrony.conf "/etc/chrony.conf.hypora-$(date +%Y%m%d-%H%M%S)"
+      sudo tee -a /etc/chrony.conf <"$REPO/system/chrony/hypora-nts.conf" >/dev/null
+      sudo systemctl try-restart chronyd || true
+    else
+      warn "chronyd rejected the NTS time servers, so /etc/chrony.conf was left alone"
+    fi
+    rm -f "$tmp"
+  fi
+
+  # Installed but not started: only Hardened mode in the Security window switches USBGuard on.
+  if available usbguard; then
+    dnf_install usbguard || warn "Could not install usbguard (Hardened mode will not restrict USB devices)"
+  fi
+fi
+
 # ---------- terminal and session environment ----------
 log "Installing kitty, uwsm, zsh, fastfetch and Neovim settings"
 put "$REPO/config/kitty/kitty.conf" "$CONF/kitty/kitty.conf"
@@ -825,10 +912,19 @@ first_timer=0
 [ -f "$CONF/systemd/user/hypora-update-check.timer" ] || first_timer=1
 put "$REPO/config/systemd/user/hypora-update-check.service" "$CONF/systemd/user/hypora-update-check.service"
 put "$REPO/config/systemd/user/hypora-update-check.timer" "$CONF/systemd/user/hypora-update-check.timer"
+# USB notifier: its path unit starts it only while Hardened mode is on. One you turned off stays off on re-runs.
+first_usb=0
+[ -f "$CONF/systemd/user/hypora-usb-watch.path" ] || first_usb=1
+put "$REPO/config/systemd/user/hypora-usb-watch.service" "$CONF/systemd/user/hypora-usb-watch.service"
+put "$REPO/config/systemd/user/hypora-usb-watch.path" "$CONF/systemd/user/hypora-usb-watch.path"
 if systemctl --user daemon-reload 2>/dev/null; then
   if [ "$first_timer" -eq 1 ]; then
     systemctl --user enable --now hypora-update-check.timer >/dev/null 2>&1 ||
       warn "Could not start the update notification timer; run: systemctl --user enable --now hypora-update-check.timer"
+  fi
+  if [ "$first_usb" -eq 1 ]; then
+    systemctl --user enable --now hypora-usb-watch.path >/dev/null 2>&1 ||
+      warn "Could not start the USB notifier; run: systemctl --user enable --now hypora-usb-watch.path"
   fi
 else
   warn "No user session to start the update notification timer in; after logging in run: systemctl --user enable --now hypora-update-check.timer"

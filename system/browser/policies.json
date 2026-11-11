@@ -1,0 +1,33 @@
+{
+  "_comment": "Managed by Hypora: hypora-setup replaces this file while this line is here. Delete the line to keep your own edits.",
+  "policies": {
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "DisablePocket": true,
+    "DontCheckDefaultBrowser": true,
+    "NetworkPrediction": false,
+    "HttpsOnlyMode": "enabled",
+    "DNSOverHTTPS": { "Enabled": false, "Locked": false },
+    "EnableTrackingProtection": {
+      "Value": true,
+      "Locked": false,
+      "Cryptomining": true,
+      "Fingerprinting": true,
+      "EmailTracking": true
+    },
+    "FirefoxHome": { "SponsoredTopSites": false, "SponsoredPocket": false, "Locked": false },
+    "FirefoxSuggest": { "SponsoredSuggestions": false, "ImproveSuggest": false, "Locked": false },
+    "UserMessaging": {
+      "ExtensionRecommendations": false,
+      "FeatureRecommendations": false,
+      "MoreFromMozilla": false,
+      "Locked": false
+    },
+    "ExtensionSettings": {
+      "uBlock0@raymondhill.net": {
+        "installation_mode": "normal_installed",
+        "install_url": "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
+      }
+    }
+  }
+}

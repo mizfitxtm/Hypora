@@ -11,6 +11,9 @@
     hypora-security location <on|off>           unmask or mask geoclue
     hypora-security add-swapfile [size]         make an encrypted swapfile (default 4g)
     hypora-security remove-swapfile             switch it off and delete it
+    hypora-security harden <on|off>             Hardened mode: boot arguments, strict DNS, USBGuard
+    hypora-security dns <opportunistic|strict>  encrypted DNS: follow the network, or Quad9 over TLS only
+    hypora-security network-zone <public|home>  firewall zone of the connected networks (no root needed)
 
 `status` and `firmware` run without root. The other commands need root and are meant
 to be run with pkexec.
@@ -603,6 +606,103 @@ def file_history():
     return out
 
 
+SYSCTL_CONF = Path("/etc/sysctl.d/60-hypora-hardening.conf")
+BLOCKLIST_CONF = Path("/etc/modprobe.d/hypora-blocklist.conf")
+COREDUMP_CONF = Path("/etc/systemd/coredump.conf.d/hypora.conf")
+CHRONY_CONF = Path("/etc/chrony.conf")
+
+
+def _sysctl_applied():
+    """True if every key in Hypora's sysctl file holds that value in the running kernel."""
+    try:
+        lines = SYSCTL_CONF.read_text().splitlines()
+    except OSError:
+        return False
+    for line in lines:
+        key, sep, want = line.partition("=")
+        if line.startswith("#") or not sep:
+            continue
+        try:
+            live = Path("/proc/sys", key.strip().replace(".", "/")).read_text().strip()
+        except OSError:
+            continue        # some keys are readable by root only; the file being there is enough
+        if live != want.strip():
+            return False
+    return True
+
+
+def baseline():
+    """Which of the hardening defaults hypora-setup installs are in place."""
+    _, features = run(["authselect", "current"])
+    try:
+        nts = bool(re.search(r"^\s*(server|pool)\s.*\bnts\b", CHRONY_CONF.read_text(), re.M))
+    except OSError:
+        nts = False
+    checks = {
+        "kernel settings": _sysctl_applied(),
+        "module blocklist": BLOCKLIST_CONF.is_file(),
+        "core dumps off": COREDUMP_CONF.is_file(),
+        "login lockout": "with-faillock" in features,
+        "authenticated time": nts,
+    }
+    return {"total": len(checks), "missing": [name for name, ok in checks.items() if not ok]}
+
+
+# Hardened mode: the opt-in settings that can break things, behind one switch.
+
+KERNEL_CMDLINE = Path("/etc/kernel/cmdline")
+# Only the arguments Fedora's kernel does not already default to.
+HARDEN_ARGS = ("init_on_free=1", "page_alloc.shuffle=1", "vsyscall=none", "debugfs=off")
+HARDENED_MARK = Path("/etc/hypora/hardened")
+USBGUARD_RULES = Path("/etc/usbguard/rules.conf")
+# Sorts after hypora-dns.conf, so it overrides it.
+STRICT_DNS_CONF = Path("/etc/systemd/resolved.conf.d/hypora-hardened.conf")
+STRICT_DNS = """\
+# Written by Hypora (Encrypted DNS: On): every lookup goes to Quad9 over TLS with DNSSEC, never in plaintext.
+[Resolve]
+DNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
+Domains=~.
+DNSOverTLS=yes
+DNSSEC=yes
+"""
+
+
+def hardened():
+    """Whether Hardened mode was switched on, and whether a reboot is still needed to match."""
+    on = HARDENED_MARK.is_file()
+    try:
+        booted = set(Path("/proc/cmdline").read_text().split())
+    except OSError:
+        booted = set()
+    live = [a for a in HARDEN_ARGS if a in booted]
+    _, usb = run(["systemctl", "is-active", "usbguard.service"])
+    return {
+        "enabled": on,
+        "rebootNeeded": len(live) < len(HARDEN_ARGS) if on else bool(live),
+        "usbguard": usb == "active",
+    }
+
+
+# "home" is firewalld's zone for a trusted network; the window calls it Private.
+NETWORK_ZONES = ("public", "home")
+
+
+def network_zone():
+    """The firewall zone of each connected Wi-Fi or ethernet network. nmcli reads this without a prompt."""
+    rc, out = run(["nmcli", "-t", "-f", "UUID,TYPE,DEVICE", "connection", "show", "--active"])
+    conns = []
+    for line in out.splitlines() if rc == 0 else []:
+        uuid, kind, dev = (line.split(":") + ["", ""])[:3]
+        if kind not in ("802-3-ethernet", "802-11-wireless"):
+            continue
+        _, zone = run(["nmcli", "-g", "connection.zone", "connection", "show", uuid])
+        # No zone set means firewalld's default zone, which Hypora sets to public
+        conns.append({"uuid": uuid, "device": dev, "zone": zone.strip() or "public"})
+    zones = {c["zone"] for c in conns}
+    return {"connections": conns,
+            "zone": zones.pop() if len(zones) == 1 else ("mixed" if zones else "")}
+
+
 def status(deep=False):
     """Everything the Security window shows.
 
@@ -618,8 +718,11 @@ def status(deep=False):
         "dns": dns(),
         "mac": mac_addresses(),
         "firewall": firewall(deep),
+        "networkZone": network_zone(),
         "updates": updates(),
         "selinux": selinux(),
+        "baseline": baseline(),
+        "hardened": hardened(),
         "camera": camera(),
         "location": location(),
         "fileHistory": file_history(),
@@ -833,6 +936,86 @@ def remove_swapfile(arg=""):
     print(f"{SWAPFILE} removed.")
 
 
+def set_dns(mode):
+    need_root()
+    if mode not in ("opportunistic", "strict"):
+        sys.exit("mode must be opportunistic or strict")
+    if mode == "strict":
+        STRICT_DNS_CONF.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(STRICT_DNS_CONF, STRICT_DNS)
+    else:
+        STRICT_DNS_CONF.unlink(missing_ok=True)
+    run(["systemctl", "try-restart", "systemd-resolved.service"], timeout=30)
+
+
+def set_network_zone(zone):
+    """Move the connected networks to a firewall zone. Runs as you: NetworkManager asks polkit itself if it must."""
+    if zone not in NETWORK_ZONES:
+        sys.exit("zone must be public or home")
+    conns = network_zone()["connections"]
+    if not conns:
+        sys.exit("No Wi-Fi or ethernet network is connected.")
+    for c in conns:
+        rc, _ = run(["nmcli", "connection", "modify", c["uuid"], "connection.zone", zone], timeout=60)
+        if rc != 0:
+            sys.exit(f"Could not change the zone of the network on {c['device']}.")
+        # reapply changes the zone without dropping the link; bringing it up again is the fallback
+        rc, _ = run(["nmcli", "device", "reapply", c["device"]], timeout=30)
+        if rc != 0:
+            run(["nmcli", "connection", "up", c["uuid"]], timeout=60)
+
+
+def _usbguard_on():
+    """Allow what is plugged in now and block new USB devices. Returns a warning, or ""."""
+    if not shutil.which("usbguard"):
+        return "USBGuard is not installed (sudo dnf install usbguard), so USB devices are not restricted."
+    # Rules that already exist are yours; only an empty file gets a generated policy.
+    if not (USBGUARD_RULES.is_file() and USBGUARD_RULES.read_text().strip()):
+        rc, rules = run(["usbguard", "generate-policy"], timeout=30)
+        # An empty policy would block the keyboard the moment the service starts.
+        if rc != 0 or "allow" not in rules:
+            return "USBGuard could not list the connected devices, so it was left off."
+        USBGUARD_RULES.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(USBGUARD_RULES, rules + "\n")
+        os.chmod(USBGUARD_RULES, 0o600)     # usbguard refuses a rules file others can read
+    rc, _ = run(["systemctl", "enable", "--now", "usbguard.service"], timeout=30)
+    return "" if rc == 0 else "USBGuard did not start, so USB devices are not restricted."
+
+
+def set_harden(state):
+    need_root()
+    if state not in ("on", "off"):
+        sys.exit("state must be on or off")
+    on = state == "on"
+
+    # Boot entries first: if grubby fails, nothing else has changed yet.
+    cmd = ["grubby", "--update-kernel=ALL", "--remove-args=" + " ".join(HARDEN_ARGS)]
+    if on:
+        cmd.append("--args=" + " ".join(HARDEN_ARGS))
+    rc, _ = run(cmd, timeout=60)
+    if rc != 0:
+        sys.exit("grubby could not change the kernel arguments, so nothing was changed.")
+    # Kernels installed later take their arguments from this file, not from grubby.
+    if KERNEL_CMDLINE.is_file():
+        kept = [w for w in KERNEL_CMDLINE.read_text().split() if w not in HARDEN_ARGS]
+        atomic_write(KERNEL_CMDLINE, " ".join(kept + (list(HARDEN_ARGS) if on else [])) + "\n")
+
+    set_dns("strict" if on else "opportunistic")
+
+    if on:
+        warning = _usbguard_on()
+        HARDENED_MARK.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(HARDENED_MARK, "Hardened mode was switched on with: hypora-security harden on\n")
+    else:
+        # The rules file stays, so switching back on allows the same devices.
+        run(["systemctl", "disable", "--now", "usbguard.service"], timeout=30)
+        warning = ""
+        HARDENED_MARK.unlink(missing_ok=True)
+
+    # The window shows the first line of stderr, so the one thing to act on goes there.
+    print(warning or "Restart to finish: the kernel arguments change at the next boot.", file=sys.stderr)
+
+
 def main(argv):
     if len(argv) < 2 or argv[1] == "status":
         print(json.dumps(status(deep="--deep" in argv), indent=2))
@@ -851,6 +1034,9 @@ def main(argv):
         "location": set_location,
         "add-swapfile": add_swapfile,
         "remove-swapfile": remove_swapfile,
+        "harden": set_harden,
+        "dns": set_dns,
+        "network-zone": set_network_zone,
     }
     if cmd not in actions:
         print(__doc__, file=sys.stderr)

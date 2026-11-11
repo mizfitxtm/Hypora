@@ -10,9 +10,9 @@
   <img src="docs/images/banner.png" width="800" alt="A terminal showing fastfetch: the Hypora logo, Hypora Linux, Hyprland, kitty and the Gruvbox theme">
 </p>
 
-Hypora is installed with a single post-install script on top of a stock Fedora install (no custom ISO). The shell is built on [Quickshell](https://quickshell.org): a custom bar, control center, notification daemon and polkit prompt, all themeable from one palette file.
+Hypora is installed from a COPR package on top of a stock Fedora install (no custom ISO); one script, `hypora-setup`, then configures the machine. The shell is built on [Quickshell](https://quickshell.org): a custom bar, control center, notification daemon and polkit prompt, all themeable from one palette file.
 
-The aim is an "install it and it just looks good" experience that doesn't take control away from you: a small, readable codebase of plain shell scripts and QML with no framework on top, one place to change colours, and AI tooling that is offered but never assumed.
+The aim is an "install it and it just looks good" experience that doesn't take control away from you: a small, readable codebase of plain shell and Python scripts and QML with no framework on top, one place to change colours, and AI tooling that is offered but never assumed.
 
 > **Version 1.0.** Installed and tested on Fedora 44 and 45, on Workstation and the Everything netinstall. Known issues are listed in [Known issues](docs/reference.md#known-issues); please [report what you find](#reporting-bugs).
 
@@ -100,6 +100,7 @@ The reasoning behind each subsystem (what it does, why it is done that way, and 
 | Document | Covers |
 |---|---|
 | [Reference](docs/reference.md) | Requirements, installing in detail, every component, keybindings, repository layout |
+| [COPR](docs/copr.md) | How the package is built and released, which Fedora releases are covered, who you trust, and updating |
 | [Security and privacy](docs/security.md) | What privacy means here, the Security window, where software comes from, the keyring, firmware and updates |
 | [Boot](docs/boot.md) | The GRUB menu, the Plymouth splash and the themed text console |
 | [Storage](docs/storage.md) | btrfs snapshots with snapper, and why Hypora would rather you had no swap partition |
@@ -115,7 +116,7 @@ The reasoning behind each subsystem (what it does, why it is done that way, and 
 - Hyprland comes from a third-party COPR, so builds can lag behind or break after Fedora updates
 - The Hyprland config is Lua, which is new. If something misbehaves after an update, check `hyprctl configerrors`
 - LocalSend fails with "No route to host" until a network is in the `home` firewall zone ([the fix](docs/security.md#known-limitations))
-- Only Fedora 44 has been tested
+- Only Fedora 44 and 45 have been tested, on Workstation and the Everything netinstall
 
 More: [Known limitations](docs/reference.md#known-limitations).
 
@@ -131,4 +132,4 @@ See [LICENSE](LICENSE).
 
 The code here was written and reviewed by me, with help from [Claude Code](https://claude.com/claude-code). I decide what gets built and why, read every change before it lands, and test it on real hardware.
 
-Either way, read the code rather than trust it. This is a desktop that configures your firewall, your DNS, your firmware updates and a helper that runs as root; the installer is plain shell and the shell layer is plain QML, both commented to explain *why* rather than *what*, specifically so that reading them is practical.
+Either way, read the code rather than trust it. This is a desktop that configures your firewall, your DNS, your firmware updates and a helper that runs as root; the installer is plain shell, the helpers are plain shell and Python, and the shell layer is plain QML, all commented to explain *why* rather than *what*, specifically so that reading them is practical.

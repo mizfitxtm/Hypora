@@ -1,0 +1,6 @@
+# Asks, with a notification, before allowing a USB device that USBGuard blocked. Started by the .path unit.
+[Unit]
+Description=Ask before allowing USB devices blocked by USBGuard
+
+[Service]
+ExecStart=%h/.local/bin/hypora-usb-watch

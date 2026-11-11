@@ -45,11 +45,11 @@ Also needed:
 `sudo dnf install hypora` installs the files; `hypora-setup` does the configuring. (`install.sh` is an optional wrapper that enables both COPRs with their keys checked first, installs `hypora` and runs `hypora-setup`.) `hypora-setup`:
 
 1. Checks you're on Fedora and not running as root, that the COPR keys are the recorded ones, and whether `/` is btrfs and encrypted
-2. Asks about a browser (Firefox, Chromium, Zen or Brave, as a Flatpak; one that is already installed is kept), the optional Flatpak apps and, only if you say yes (or set `INSTALL_EXTRAS=yes`), `@virtualization` and network tools (nmap, aircrack-ng, wireshark/tshark)
+2. Asks about a browser (Firefox, Chromium, Zen or Brave as a Flatpak, or Trivalent as an RPM; one that is already installed is kept), the optional Flatpak apps and, only if you say yes (or set `INSTALL_EXTRAS=yes`), `@virtualization` and network tools (nmap, aircrack-ng, wireshark/tshark)
 3. Sets up a daily, read-only check that sends a desktop notification when dnf updates are waiting (a user timer, `hypora-update-check.timer`; turn it off with `systemctl --user disable --now hypora-update-check.timer`), removes `wofi` if it only came along as a recommendation of `hyprland` (Hypora has its own launcher; one you installed yourself stays), then checks whether this is a laptop or a desktop (battery and backlight pieces install only on a laptop) and that Hyprland is 0.55+
 4. Installs Oh My Zsh and the LazyVim starter, both pinned to a commit, and makes zsh your login shell (an existing `~/.config/nvim` is left alone)
 5. Installs JetBrainsMono Nerd Font and the system font defaults
-6. Enables NetworkManager, upower, bluetooth and power profiles; points DNS at systemd-resolved with DNS-over-TLS; randomizes MAC addresses; enables `firewalld` in the closed `public` zone; turns on automatic security updates for packages and flatpaks; sets up keyring auto-unlock; and sets the default boot target to graphical
+6. Enables NetworkManager, upower, bluetooth and power profiles; points DNS at systemd-resolved with DNS-over-TLS; randomizes MAC addresses; enables `firewalld` in the closed `public` zone; turns on automatic security updates for packages and flatpaks; sets up keyring auto-unlock; applies the kernel and login hardening (`HARDENING=no` skips it; see [Kernel and login hardening](security.md#kernel-and-login-hardening)); and sets the default boot target to graphical
 7. Installs the theme palettes and templates into `~/.config/hypora/` and applies the chosen theme
 8. **Copies** `config/hypr/hyprland.lua`, `config/quickshell/`, the GTK settings and the themes into `~/.config/`, and `applications/*.desktop` into `~/.local/share/applications/`
 9. Installs the SDDM login theme, disables GDM/LightDM/greetd, enables SDDM, and installs the Plymouth boot theme — the slowest step, because it rebuilds the initramfs
@@ -223,10 +223,13 @@ Don't run another notification daemon (Mako, dunst, swaync) or polkit agent alon
 ├── system/
 │   ├── fontconfig/         # system font defaults -> /etc/fonts/conf.d/
 │   ├── yum.repos.d/        # Claude Code repository -> /etc/yum.repos.d/
-│   ├── systemd/            # DNS config, flatpak update timer, the plymouth drop-in
-│   │                       # and the power units -> /etc/systemd/
+│   ├── systemd/            # DNS config, flatpak update timer, core dumps off, the plymouth
+│   │                       # drop-in and the power units -> /etc/systemd/
 │   ├── NetworkManager/     # systemd-resolved and MAC randomization -> conf.d/
 │   ├── dnf/automatic.conf  # automatic security updates
+│   ├── sysctl.d/           # kernel hardening settings -> /etc/sysctl.d/
+│   ├── modprobe.d/         # blocked kernel modules -> /etc/modprobe.d/
+│   ├── chrony/             # NTS time servers, appended to /etc/chrony.conf
 │   └── sddm/               # login screen theme and session, installed by hypora-setup
 └── LICENSE
 ```

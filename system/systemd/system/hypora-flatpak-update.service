@@ -12,3 +12,5 @@ Type=oneshot
 Nice=19
 IOSchedulingClass=idle
 ExecStart=/usr/bin/flatpak update --system --assumeyes --noninteractive
+# Trivalent's repository publishes no security advisories, so dnf-automatic would never update it.
+ExecStart=-/bin/sh -c 'rpm -q trivalent >/dev/null 2>&1 && exec dnf -y upgrade --refresh trivalent'

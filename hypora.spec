@@ -1,5 +1,5 @@
 Name:           hypora
-Version:        1.0.0
+Version:        1.1.0
 Release:        1%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
@@ -123,6 +123,12 @@ echo "Hypora is installed. Run hypora-setup as your normal user to finish."
 %{_bindir}/hypora-setup
 
 %changelog
+* Wed Nov 11 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.1.0-1
+- Kernel and login hardening by default: sysctl settings, a module blocklist, no core dumps, login lockout, authenticated time (HARDENING=no skips it)
+- Hardened mode in the Security window: stricter kernel arguments, strict DNS and USBGuard, with a notification to allow new USB devices
+- Security window: dropdowns for SELinux, Hardened mode, encrypted DNS and the network's firewall zone
+- Browser: a policy file for Firefox and Zen, Firefox without X11 access, Trivalent as a choice
+
 * Mon Nov 09 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.0.0-1
 - First stable release: tested on Fedora 44 and 45, Workstation and Everything
 - hypora-setup removes wofi when it only came along as a recommendation of hyprland

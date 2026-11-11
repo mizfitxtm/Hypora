@@ -162,6 +162,180 @@ class SelinuxBootTests(unittest.TestCase):
         self.assertEqual(self.set_boot("SELINUX=enforcing\n", "permissive"), ("SELINUX=permissive\n", False))
 
 
+class HardenTests(unittest.TestCase):
+    """Hardened mode edits the kernel command line and can block USB input, so both directions are checked."""
+
+    def setUp(self):
+        self.hs = load("hypora-security")
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.cmdline = self.tmp / "cmdline"
+        self.cmdline.write_text("ro rhgb quiet\n")
+        self.dns = self.tmp / "resolved.conf.d/hypora-hardened.conf"
+        self.rules = self.tmp / "usbguard/rules.conf"
+        self.mark = self.tmp / "hypora/hardened"
+        self.calls = []
+        self.policy = 'allow id 1d6b:0002 serial "x"'
+
+        def fake_run(cmd, timeout=10):
+            self.calls.append(cmd)
+            return (0, self.policy) if cmd[:2] == ["usbguard", "generate-policy"] else (0, "")
+
+        patches = [mock.patch.object(self.hs, "KERNEL_CMDLINE", self.cmdline),
+                   mock.patch.object(self.hs, "STRICT_DNS_CONF", self.dns),
+                   mock.patch.object(self.hs, "USBGUARD_RULES", self.rules),
+                   mock.patch.object(self.hs, "HARDENED_MARK", self.mark),
+                   mock.patch.object(self.hs.os, "geteuid", return_value=0),
+                   mock.patch.object(self.hs.shutil, "which", return_value="/usr/bin/usbguard"),
+                   mock.patch.object(self.hs, "run", side_effect=fake_run)]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def started_usbguard(self):
+        return ["systemctl", "enable", "--now", "usbguard.service"] in self.calls
+
+    def test_on_then_off_puts_everything_back(self):
+        self.hs.set_harden("on")
+        self.assertEqual(self.cmdline.read_text(), "ro rhgb quiet " + " ".join(self.hs.HARDEN_ARGS) + "\n")
+        self.assertIn("DNSOverTLS=yes", self.dns.read_text())
+        self.assertTrue(self.mark.is_file())
+        self.assertTrue(self.started_usbguard())
+        self.assertEqual(self.rules.stat().st_mode & 0o777, 0o600)
+
+        self.hs.set_harden("on")                      # a second "on" must not double the arguments
+        self.assertEqual(self.cmdline.read_text().count("vsyscall=none"), 1)
+
+        self.hs.set_harden("off")
+        self.assertEqual(self.cmdline.read_text(), "ro rhgb quiet\n")
+        self.assertFalse(self.dns.exists())
+        self.assertFalse(self.mark.exists())
+        self.assertIn("allow", self.rules.read_text())   # rules are kept for next time
+
+    def test_empty_policy_never_starts_usbguard(self):
+        self.policy = ""
+        self.hs.set_harden("on")
+        self.assertFalse(self.started_usbguard())
+        self.assertFalse(self.rules.exists())
+
+    def test_existing_usb_rules_are_kept(self):
+        self.rules.parent.mkdir(parents=True)
+        self.rules.write_text("allow id 046d:c52b\n")
+        self.hs.set_harden("on")
+        self.assertEqual(self.rules.read_text(), "allow id 046d:c52b\n")
+        self.assertTrue(self.started_usbguard())
+
+    def test_grubby_failure_changes_nothing(self):
+        with mock.patch.object(self.hs, "run", return_value=(1, "")):
+            with self.assertRaises(SystemExit):
+                self.hs.set_harden("on")
+        self.assertEqual(self.cmdline.read_text(), "ro rhgb quiet\n")
+        self.assertFalse(self.dns.exists())
+
+    def test_bad_state_is_refused(self):
+        with self.assertRaises(SystemExit):
+            self.hs.set_harden("maybe")
+
+    def test_dns_dropdown_writes_and_removes_the_strict_file(self):
+        self.hs.set_dns("strict")
+        self.assertIn("Domains=~.", self.dns.read_text())     # without it resolved keeps the DHCP resolver
+        self.hs.set_dns("opportunistic")
+        self.assertFalse(self.dns.exists())
+        with self.assertRaises(SystemExit):
+            self.hs.set_dns("no")
+
+    def test_strict_dns_file_overrides_the_default_one(self):
+        self.assertGreater(self.hs.STRICT_DNS_CONF.name, "hypora-dns.conf")   # resolved reads drop-ins in name order
+
+    def test_network_zone_changes_each_connected_network(self):
+        conns = {"connections": [{"uuid": "u1", "device": "wlan0", "zone": "public"}], "zone": "public"}
+        with mock.patch.object(self.hs, "network_zone", return_value=conns):
+            self.hs.set_network_zone("home")
+            self.assertIn(["nmcli", "connection", "modify", "u1", "connection.zone", "home"], self.calls)
+            self.assertIn(["nmcli", "device", "reapply", "wlan0"], self.calls)
+            with self.assertRaises(SystemExit):
+                self.hs.set_network_zone("trusted; rm -rf /")
+
+
+class UsbWatchTests(unittest.TestCase):
+    """The notifier reads text a USB device partly controls, so the parsing and cleaning are checked."""
+    WATCH = """[IPC] Connected
+[device] PresenceChanged: id=14
+ event=Insert
+ target=block
+ device_rule=block id 0781:5581 serial "4C53" name "Ultra <b>\x07Fit" hash "x" with-interface 08:06:50
+[device] PolicyApplied: id=14
+ target=block
+ device_rule=block id 0781:5581 serial "4C53" name "Ultra <b>\x07Fit" hash "x" with-interface 08:06:50
+ rule_id=4294967294
+[device] PresenceChanged: id=15
+ event=Insert
+ target=allow
+ device_rule=allow id 046d:c52b name "Receiver"
+[device] PolicyChanged: id=14
+ target_old=block
+ target_new=allow
+ device_rule=allow id 0781:5581 name "Ultra Fit"
+ rule_id=4294967295
+[device] PresenceChanged: id=14
+ event=Remove
+ target=allow
+ device_rule=allow id 0781:5581 name "Ultra Fit"
+[device] PresenceChanged: id=14
+ event=Insert
+ target=block
+ device_rule=block id 0781:5581 name "Ultra Fit"
+"""
+
+    def setUp(self):
+        self.uw = load("hypora-usb-watch")
+
+    def test_asks_once_per_blocked_device_and_again_after_replug(self):
+        got = list(self.uw.blocked(self.WATCH.splitlines()))
+        self.assertEqual([i for i, _ in got], ["14", "14"])       # not for the allowed one, not twice per insert
+
+    def test_device_name_is_cleaned(self):
+        label = list(self.uw.blocked(self.WATCH.splitlines()))[0][1]
+        self.assertEqual(label, "Ultra &lt;b&gt;Fit (0781:5581)")   # markup escaped, control character dropped
+
+    def test_allow_uses_the_numeric_id_only(self):
+        calls = []
+        def fake_run(cmd, **kw):
+            calls.append(cmd)
+            return mock.Mock(stdout="always\n" if cmd[0] == "notify-send" else "")
+        with mock.patch.object(self.uw.subprocess, "run", side_effect=fake_run):
+            self.uw.ask("14", "Ultra Fit")
+        self.assertEqual(calls[-1], ["usbguard", "allow-device", "14", "-p"])
+
+
+class HardeningFileTests(unittest.TestCase):
+    """A typo in these files fails silently at boot, so their shape is checked here."""
+
+    def lines(self, rel):
+        text = (ROOT / "system" / rel).read_text()
+        return [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
+
+    def test_sysctl_lines_are_key_value(self):
+        for line in self.lines("sysctl.d/60-hypora-hardening.conf"):
+            self.assertRegex(line, r"^[a-z0-9_.]+ = \d+$")
+
+    def test_blocklist_lines_disable_one_module(self):
+        for line in self.lines("modprobe.d/hypora-blocklist.conf"):
+            self.assertRegex(line, r"^install [a-z0-9_-]+ /bin/false$")
+
+    def test_time_servers_all_use_nts(self):
+        text = (ROOT / "system/chrony/hypora-nts.conf").read_text()
+        self.assertIn("Added by Hypora", text)          # hypora-setup looks for this before appending
+        for line in self.lines("chrony/hypora-nts.conf"):
+            self.assertRegex(line, r"^server \S+ iburst nts$")
+
+    def test_browser_policy_is_valid_and_marked(self):
+        import json
+        text = (ROOT / "system/browser/policies.json").read_text()
+        self.assertIn("Managed by Hypora", text)        # hypora-setup only replaces a file with this marker
+        self.assertIsInstance(json.loads(text)["policies"], dict)
+
+
 class ReplaceDeConfigTests(unittest.TestCase):
     """The GNOME settings cleanup moves files to a backup and leaves what Hypora uses."""
 

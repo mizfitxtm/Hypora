@@ -33,7 +33,7 @@ class BrowserTests(unittest.TestCase):
         return bash(f"flatpak() {{ return 1; }}\n{func('pick_browser')}\npick_browser", stdin="", env=env).stdout.strip()
 
     def test_env_choice(self):
-        for b in ("firefox", "chromium", "zen", "brave"):
+        for b in ("firefox", "chromium", "zen", "brave", "trivalent"):
             self.assertEqual(self.pick({"BROWSER": b}), b)
 
     def test_default_and_junk_fall_back_to_firefox(self):
@@ -42,7 +42,8 @@ class BrowserTests(unittest.TestCase):
 
     def test_every_choice_maps_to_a_flatpak(self):
         for b, app in (("chromium", "org.chromium.Chromium"), ("zen", "app.zen_browser.zen"),
-                       ("brave", "com.brave.Browser"), ("firefox", "org.mozilla.firefox")):
+                       ("brave", "com.brave.Browser"), ("trivalent", "trivalent"),
+                       ("firefox", "org.mozilla.firefox")):
             self.assertRegex(SRC, rf"{b if b != 'firefox' else r'\*'}\) BROWSER_APP={re.escape(app)} ;;")
 
 

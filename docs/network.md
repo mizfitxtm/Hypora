@@ -52,6 +52,8 @@ DNSOverTLS=yes
 
 The `#dns.quad9.net` suffix is what makes that encrypted DNS rather than DNS to an encrypted-looking address: it's the name the resolver's certificate has to match. Cloudflare is `1.1.1.1#one.one.one.one`, Mullvad `194.242.2.2#dns.mullvad.net`. Edit the file (or `system/systemd/resolved.conf.d/hypora-dns.conf` and re-run the installer) and `sudo systemctl restart systemd-resolved`.
 
+**Hardened mode** in the Security window writes exactly this (plus `DNSSEC=yes`) to `/etc/systemd/resolved.conf.d/hypora-hardened.conf`, a separate file that it deletes again when switched off. See [Hardened mode](security.md#hardened-mode).
+
 Note that `DNSOverTLS=yes` breaks captive portals — hotel and airport sign-in pages need DNS to load and block DNS until you've used them. For a one-off, without editing anything:
 
 ```bash

@@ -1,0 +1,9 @@
+# Starts the USB notifier whenever Hardened mode's marker file exists; the notifier exits when it is gone.
+[Unit]
+Description=Start the USB device notifier while Hardened mode is on
+
+[Path]
+PathExists=/etc/hypora/hardened
+
+[Install]
+WantedBy=default.target

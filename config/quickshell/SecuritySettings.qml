@@ -36,6 +36,8 @@ Scope {
             readonly property bool deep: haveFirmware || haveFirewallDetail
             property bool loading: true
             property string notice: ""
+            readonly property var selinuxModes: [{ label: "Enforcing", value: "enforcing" },
+                                                 { label: "Permissive", value: "permissive" }]
 
             readonly property var source: Pipewire.defaultAudioSource
             readonly property var micAudio: source ? source.audio : null
@@ -533,17 +535,40 @@ Scope {
                                     const via = d.server ? ` Queries go to ${d.server}.` : ""
                                     if (d.strict) return "Lookups are encrypted to a verified resolver, and fail rather "
                                         + "than falling back to plaintext." + via
-                                        + " Captive portals need this relaxed first: resolvectl dnsovertls <interface> opportunistic."
+                                        + " Lookups go to Quad9, not the network's own resolver. Switch to Opportunistic to sign in to a captive portal."
                                     if (d.mode === "opportunistic") return "Lookups are encrypted when the resolver "
                                         + "answers on port 853, and sent in plaintext when it doesn't — which a network "
                                         + "can force by blocking that port, and which a resolver on your own network "
                                         + "(a Pi-hole, a router) normally needs." + via
-                                        + " Set DNSOverTLS=yes in /etc/systemd/resolved.conf.d/hypora-dns.conf to refuse plaintext."
+                                        + " On refuses plaintext by sending every lookup to Quad9 instead."
                                     if (d.mode === "unknown") return "systemd-resolved is running but didn't say "
                                         + "whether DNS-over-TLS is on." + via
                                     return "Lookups are sent in plaintext, so the network can read and rewrite "
                                         + "which sites you visit." + via
                                 }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.leftMargin: 12
+                                Layout.topMargin: 2
+                                Layout.bottomMargin: 8
+                                spacing: 8
+                                visible: win.info !== null && win.info.dns.available
+
+                                Text {
+                                    text: "Mode:"
+                                    font.family: Theme.font; font.pixelSize: Theme.fontSize - 2
+                                    color: Theme.dim
+                                }
+                                Select {
+                                    implicitWidth: 170
+                                    implicitHeight: 30
+                                    model: [{ label: "Opportunistic", value: "opportunistic" }, { label: "On", value: "strict" }]
+                                    currentIndex: indexOfValue(win.shown("dns", win.info ? (win.info.dns.strict ? "strict" : win.info.dns.mode) : ""))
+                                    onActivated: i => win.admin(["dns", model[i].value], "Changing encrypted DNS…", "dns", model[i].value)
+                                }
+                                Item { Layout.fillWidth: true }
                             }
 
                             StatusRow {
@@ -610,7 +635,31 @@ Scope {
                                         ? "The FedoraWorkstation zone leaves ports 1025-65535 open on TCP and UDP. "
                                           + "Hypora uses the public zone instead."
                                         : "Incoming connections are refused except where a service was allowed.") + open
+                                        + " Private puts this network in the home zone, where LocalSend can receive."
                                 }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.leftMargin: 12
+                                Layout.topMargin: 2
+                                Layout.bottomMargin: 8
+                                spacing: 8
+                                visible: win.info !== null && !!win.info.networkZone && win.info.networkZone.connections.length > 0
+
+                                Text {
+                                    text: "This network:"
+                                    font.family: Theme.font; font.pixelSize: Theme.fontSize - 2
+                                    color: Theme.dim
+                                }
+                                Select {
+                                    implicitWidth: 170
+                                    implicitHeight: 30
+                                    model: [{ label: "Public", value: "public" }, { label: "Private", value: "home" }]
+                                    currentIndex: indexOfValue(win.shown("netZone", win.info && win.info.networkZone ? win.info.networkZone.zone : ""))
+                                    onActivated: i => win.userRun([win.helper, "network-zone", model[i].value], "netZone", model[i].value)
+                                }
+                                Item { Layout.fillWidth: true }
                             }
 
                             StatusRow {
@@ -679,22 +728,44 @@ Scope {
                                 Layout.fillWidth: true
                                 Layout.leftMargin: 12
                                 Layout.topMargin: 2
-                                Layout.bottomMargin: 6
+                                Layout.bottomMargin: 8
                                 spacing: 8
                                 visible: win.info !== null && win.info.selinux.available
 
-                                Repeater {
-                                    model: ["Enforcing", "Permissive"]
-                                    Pill {
-                                        required property string modelData
-                                        readonly property string want: modelData.toLowerCase()
-                                        text: modelData
-                                        // Changing the running mode only works if SELinux is already on
-                                        enabled: win.info && win.info.selinux.mode !== "disabled"
-                                        current: win.shown("selinux",
-                                                    win.info ? win.info.selinux.mode : "") === want
-                                        onClicked: win.admin(["selinux", want], `Switching to ${want}…`,
-                                                             "selinux", want)
+                                Text {
+                                    text: "Now:"
+                                    font.family: Theme.font; font.pixelSize: Theme.fontSize - 2
+                                    color: Theme.dim
+                                }
+                                Select {
+                                    implicitWidth: 150
+                                    implicitHeight: 30
+                                    model: win.selinuxModes
+                                    // Changing the running mode only works if SELinux is already on
+                                    enabled: win.info && win.info.selinux.mode !== "disabled"
+                                    currentIndex: indexOfValue(win.shown("selinux",
+                                                      win.info ? win.info.selinux.mode : ""))
+                                    onActivated: i => {
+                                        const want = win.selinuxModes[i].value
+                                        win.admin(["selinux", want], `Switching to ${want}…`, "selinux", want)
+                                    }
+                                }
+                                Text {
+                                    Layout.leftMargin: 8
+                                    text: "At boot:"
+                                    font.family: Theme.font; font.pixelSize: Theme.fontSize - 2
+                                    color: Theme.dim
+                                }
+                                Select {
+                                    implicitWidth: 150
+                                    implicitHeight: 30
+                                    model: win.selinuxModes
+                                    currentIndex: indexOfValue(win.shown("selinuxBoot",
+                                                      win.info ? win.info.selinux.boot : ""))
+                                    onActivated: i => {
+                                        const want = win.selinuxModes[i].value
+                                        win.admin(["selinux-boot", want], "Will relabel on the next boot…",
+                                                  "selinuxBoot", want)
                                     }
                                 }
                                 Item { Layout.fillWidth: true }
@@ -706,32 +777,44 @@ Scope {
                                 }
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Layout.leftMargin: 12
-                                Layout.bottomMargin: 8
-                                spacing: 8
-                                visible: win.info !== null && win.info.selinux.available
+                            StatusRow {
+                                readonly property var base: win.info ? win.info.baseline : null
+                                readonly property bool good: !!base && base.missing.length === 0
+                                icon: !base ? "shield" : good ? "shield-check" : "shield-alert"
+                                tone: !base ? Theme.dim : good ? Theme.accent : Theme.warn
+                                title: "Kernel and login hardening"
+                                value: !base ? "" : `${base.total - base.missing.length} of ${base.total}`
+                                detail: !base ? ""
+                                      : good ? "Stricter kernel settings, rarely used kernel modules blocked, no core "
+                                             + "dumps kept, accounts lock after five wrong passwords, and the clock "
+                                             + "is set from authenticated time servers."
+                                      : "Not in place: " + base.missing.join(", ")
+                                        + ". Run hypora-setup again to restore them."
+                            }
 
-                                Text {
-                                    text: "At boot:"
-                                    font.family: Theme.font; font.pixelSize: Theme.fontSize - 2
-                                    color: Theme.dim
-                                }
-                                Repeater {
-                                    model: ["Enforcing", "Permissive"]
-                                    Pill {
-                                        required property string modelData
-                                        readonly property string want: modelData.toLowerCase()
-                                        text: modelData
-                                        small: true
-                                        current: win.shown("selinuxBoot",
-                                                    win.info ? win.info.selinux.boot : "") === want
-                                        onClicked: win.admin(["selinux-boot", want],
-                                            "Will relabel on the next boot…",
-                                            "selinuxBoot", want)
-                                    }
-                                }
+                            // One switch for the settings that can break things, so it is one step to rule them out.
+                            ToggleRow {
+                                readonly property var hard: win.info ? win.info.hardened : null
+                                icon: hard && hard.enabled ? "shield-check" : "shield"
+                                title: "Hardened mode"
+                                dropdown: true
+                                available: !!hard
+                                checked: win.shown("hardened", !!hard && hard.enabled)
+                                detail: !hard ? ""
+                                      : !hard.enabled
+                                        ? "Adds stricter kernel boot arguments, sends every DNS lookup to Quad9 over "
+                                          + "TLS, and blocks USB devices that are not plugged in when you switch it on. "
+                                          + "The network's own DNS (a Pi-hole, a captive portal) stops being used, and "
+                                          + "memory-heavy programs run a few percent slower."
+                                          + (hard.rebootNeeded ? " Restart to finish switching it off." : "")
+                                        : (hard.rebootNeeded ? "Restart to finish: the kernel arguments apply at the next boot. " : "")
+                                          + (hard.usbguard
+                                             ? "New USB devices are blocked. List them with usbguard list-devices -b "
+                                               + "and allow one with sudo usbguard allow-device <number> -p."
+                                             : "USBGuard is not running, so USB devices are not restricted.")
+                                onToggled: win.admin(["harden", checked ? "off" : "on"],
+                                                     checked ? "Switching Hardened mode off…" : "Switching Hardened mode on…",
+                                                     "hardened", !checked)
                             }
 
                             // Privacy: sensors that can observe you and what you opened, grouped by subject.
@@ -889,6 +972,7 @@ Scope {
                 property string detail
                 property bool checked: false
                 property bool available: true
+                property bool dropdown: false
                 signal toggled()
 
                 Layout.fillWidth: true
@@ -922,23 +1006,41 @@ Scope {
                         color: Theme.dim
                     }
                 }
-                Rectangle {
+                // A switch by default; `dropdown: true` shows an On/Off dropdown for a setting that deserves a deliberate pick.
+                Item {
                     id: trSwitch
-                    anchors { right: parent.right; rightMargin: 14; top: parent.top; topMargin: 14 }
-                    width: 44; height: 24; radius: 12
-                    color: tr.available && tr.checked ? Theme.accent : Theme.bg
-                    Rectangle {
-                        width: 18; height: 18; radius: 9
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: tr.checked ? parent.width - width - 3 : 3
-                        color: tr.checked ? Theme.bg : Theme.dim
-                        Behavior on x { NumberAnimation { duration: 120 } }
-                    }
-                    MouseArea {
+                    anchors { right: parent.right; rightMargin: 14; top: parent.top; topMargin: tr.dropdown ? 10 : 14 }
+                    width: tr.dropdown ? 92 : 44
+                    height: tr.dropdown ? 30 : 24
+
+                    Select {
+                        visible: tr.dropdown
                         anchors.fill: parent
+                        fill: Theme.bg
                         enabled: tr.available
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: tr.toggled()
+                        model: [{ label: "On", value: true }, { label: "Off", value: false }]
+                        currentIndex: tr.checked ? 0 : 1
+                        // Picking the value already shown changes nothing
+                        onActivated: i => { if ((i === 0) !== tr.checked) tr.toggled() }
+                    }
+                    Rectangle {
+                        visible: !tr.dropdown
+                        anchors.fill: parent
+                        radius: 12
+                        color: tr.available && tr.checked ? Theme.accent : Theme.bg
+                        Rectangle {
+                            width: 18; height: 18; radius: 9
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: tr.checked ? parent.width - width - 3 : 3
+                            color: tr.checked ? Theme.bg : Theme.dim
+                            Behavior on x { NumberAnimation { duration: 120 } }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: tr.available
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: tr.toggled()
+                        }
                     }
                 }
             }

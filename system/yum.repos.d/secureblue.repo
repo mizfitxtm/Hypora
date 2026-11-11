@@ -1,0 +1,10 @@
+# secureblue's repository, limited to the Trivalent browser. A third party: see docs/security.md.
+[secureblue]
+name=secureblue (Trivalent only)
+baseurl=https://repo.secureblue.dev
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+# hypora-setup checks the key against a recorded fingerprint and saves it here
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-secureblue
+includepkgs=trivalent*

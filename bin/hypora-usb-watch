@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""hypora-usb-watch: ask before allowing a USB device that USBGuard blocked.
+
+Runs as your user (the hypora-usb-watch user service) while Hardened mode is on. It reads
+`usbguard watch` and sends one notification per newly blocked device, with "Allow once"
+(until it is unplugged) and "Always allow" (adds a rule). No answer leaves it blocked.
+
+Members of the wheel group may talk to USBGuard (IPCAllowedGroups in usbguard-daemon.conf),
+so this needs no root.
+"""
+import html
+import re
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
+HARDENED_MARK = Path("/etc/hypora/hardened")
+
+
+def device_label(rule):
+    """A short name for a device from its USBGuard rule. The device chooses this text, so it is cleaned."""
+    name = re.search(r'\bname "((?:[^"\\]|\\.)*)"', rule)
+    ids = re.search(r"\bid ([0-9a-fA-F]{4}:[0-9a-fA-F]{4})\b", rule)
+    text = re.sub(r"[^\x20-\x7e]", "", name.group(1) if name else "").strip()[:60] or "Unnamed device"
+    # Notification bodies are rendered as markup
+    return html.escape(text) + (f" ({ids.group(1)})" if ids else "")
+
+
+def blocked(lines):
+    """Yield (device id, label) once for each device `usbguard watch` reports as newly blocked."""
+    cur, seen = {}, set()
+    for line in lines:
+        head = re.match(r"\[device\] (\w+): id=(\d+)", line)
+        if head:
+            cur = {"kind": head.group(1), "id": head.group(2)}
+            continue
+        key, sep, value = line.strip().partition("=")
+        if not sep or not cur:
+            continue
+        cur[key] = value
+        if cur.get("event") == "Remove":
+            seen.discard(cur["id"])     # plugged in again later, it is asked about again
+        fresh = cur["kind"] == "PolicyApplied" or cur.get("event") == "Insert"
+        if key == "device_rule" and fresh and cur.get("target") == "block" and cur["id"] not in seen:
+            seen.add(cur["id"])
+            yield cur["id"], device_label(value)
+
+
+def ask(dev_id, label):
+    """Show the notification and act on the button pressed, if any."""
+    try:
+        r = subprocess.run(
+            ["notify-send", "--app-name=Hypora", "--icon=drive-removable-media-usb",
+             "--action=once=Allow once", "--action=always=Always allow",
+             "USB device blocked",
+             f"{label} was plugged in while Hardened mode is on. It stays blocked unless you allow it."],
+            capture_output=True, text=True, timeout=600)
+    except (OSError, subprocess.SubprocessError):
+        return
+    choice = r.stdout.strip()
+    if choice in ("once", "always"):
+        subprocess.run(["usbguard", "allow-device", dev_id] + (["-p"] if choice == "always" else []),
+                       capture_output=True, timeout=30)
+
+
+def main():
+    while HARDENED_MARK.exists():
+        try:
+            watch = subprocess.Popen(["usbguard", "watch"], stdout=subprocess.PIPE,
+                                     stderr=subprocess.DEVNULL, text=True, errors="replace")
+        except OSError:
+            time.sleep(60)              # usbguard is not installed; keep waiting quietly
+            continue
+        for dev_id, label in blocked(watch.stdout):
+            threading.Thread(target=ask, args=(dev_id, label), daemon=True).start()
+        watch.wait()
+        time.sleep(15)                  # the daemon stopped or is restarting
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
