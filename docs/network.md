@@ -14,13 +14,14 @@ Two things fix that, and they pull in opposite directions: encrypting the connec
 # /etc/systemd/resolved.conf.d/hypora-dns.conf
 FallbackDNS=9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
 DNSOverTLS=opportunistic
-DNSSEC=allow-downgrade
+DNSSEC=no
 Cache=yes
 LLMNR=no
 ```
 
 - **DNS follows the network.** Whatever resolver DHCP hands out is the one used. That's what keeps a Pi-hole, a router or an internal DNS server in charge, with its filtering and its local names intact. `FallbackDNS=` only applies when a network hands out no resolver at all.
 - **`DNSOverTLS=opportunistic`** encrypts the connection when the resolver answers on port 853 and uses plain DNS when it doesn't. A Pi-hole on port 53 needs that fallback. The cost is that a network can force plaintext by blocking 853, so this stops someone passively watching, not the network operator itself.
+- **`DNSSEC=no`** because `allow-downgrade` made lookups behind a Pi-hole stall and time out, which shows up as pages that load slowly or not at all. A resolver you run can validate DNSSEC itself; Hardened mode turns it on with Quad9.
 - **`LLMNR=no`** turns off Link-Local Multicast Name Resolution. With it on, any device on the same network can answer a lookup for a mistyped or single-word name and steer you to itself. Normal DNS names are unaffected.
 - A second file, `/etc/NetworkManager/conf.d/hypora-dns.conf`, tells NetworkManager to hand its DNS to resolved rather than writing `/etc/resolv.conf` directly — without it, none of the above is consulted.
 

@@ -15,6 +15,14 @@ Scope {
         function close(): void { ShellState.bluetoothSettingsOpen = false }
     }
 
+    // Quickshell has no BlueZ pairing agent; without one, pairings that need confirming fail.
+    Process {
+        running: ShellState.bluetoothSettingsOpen
+        command: ["bluetoothctl"]
+        stdinEnabled: true
+        onStarted: write("agent NoInputNoOutput\ndefault-agent\n")
+    }
+
     LazyLoader {
         active: ShellState.bluetoothSettingsOpen
 
