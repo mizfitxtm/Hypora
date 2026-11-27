@@ -30,8 +30,8 @@ def device_label(rule):
 
 
 def blocked(lines):
-    """Yield (device id, label) once for each device `usbguard watch` reports as newly blocked."""
-    cur, seen = {}, set()
+    """Yield (device id, label) once for each inserted device the policy leaves blocked."""
+    cur, inserted = {}, set()
     for line in lines:
         head = re.match(r"\[device\] (\w+): id=(\d+)", line)
         if head:
@@ -41,11 +41,14 @@ def blocked(lines):
         if not sep or not cur:
             continue
         cur[key] = value
-        if cur.get("event") == "Remove":
-            seen.discard(cur["id"])     # plugged in again later, it is asked about again
-        # Only an insert carries `target=`; PolicyChanged and PolicyApplied report `target_new=` for the same device
-        if key == "device_rule" and cur.get("event") == "Insert" and cur.get("target") == "block" and cur["id"] not in seen:
-            seen.add(cur["id"])
+        if key == "event":
+            if value == "Insert":
+                inserted.add(cur["id"])
+            else:
+                inserted.discard(cur["id"])
+        # An insert always reports block; whether a rule allows it comes after, as target_new
+        if key == "device_rule" and cur.get("target_new") == "block" and cur["id"] in inserted:
+            inserted.discard(cur["id"])
             yield cur["id"], device_label(value)
 
 
