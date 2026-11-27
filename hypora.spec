@@ -1,6 +1,6 @@
 Name:           hypora
-Version:        1.2.0
-Release:        2%{?dist}
+Version:        1.3.1
+Release:        1%{?dist}
 Summary:        A privacy-focused Hyprland desktop for Fedora
 License:        GPL-3.0-or-later
 URL:            https://github.com/mizfitxtm/Hypora
@@ -123,6 +123,13 @@ echo "Hypora is installed. Run hypora-setup as your normal user to finish."
 %{_bindir}/hypora-setup
 
 %changelog
+* Fri Nov 27 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.3.1-1
+- The USB question is asked only for devices the policy leaves blocked, not for ones a rule already allows
+
+* Thu Nov 12 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.3.0-1
+- Bluetooth settings run a pairing agent while open, so controllers and phones that ask to confirm pairing can pair
+- DNSSEC is off by default because allow-downgrade stalled lookups behind a Pi-hole or router resolver; Hardened mode still turns it on with Quad9
+
 * Wed Nov 11 2026 mizfitxtm <noreply@users.noreply.github.com> - 1.2.0-2
 - Tray apps open a menu drawn in the theme on right click, and on left click for menu-only apps like Steam and Discord
 - Tray icons from the icon theme take the theme's colour, and the accent on hover
