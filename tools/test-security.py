@@ -313,8 +313,12 @@ class UsbWatchTests(unittest.TestCase):
  rule_id=4294967294
 [device] PresenceChanged: id=29
  event=Insert
- target=allow
+ target=block
+ device_rule=block id 046d:c52b name "Receiver"
+[device] PolicyApplied: id=29
+ target_new=allow
  device_rule=allow id 046d:c52b name "Receiver"
+ rule_id=3
 [device] PresenceChanged: id=28
  event=Remove
  target=block
@@ -323,6 +327,10 @@ class UsbWatchTests(unittest.TestCase):
  event=Insert
  target=block
  device_rule=block id 0781:5581 serial "4C53" name "Ultra <b>\x07Fit" with-interface 08:06:50
+[device] PolicyApplied: id=30
+ target_new=block
+ device_rule=block id 0781:5581 serial "4C53" name "Ultra <b>\x07Fit" with-interface 08:06:50
+ rule_id=4294967294
 """
 
     def setUp(self):
